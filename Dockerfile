@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY --chown=appuser:appuser . .
@@ -24,6 +24,5 @@ ENV FLASK_APP=run.py
 ENV PYTHONUNBUFFERED=1
 EXPOSE 5000
 
-# --preload: load app once in master so db.create_all() runs once (avoids race between workers).
-# No control server to avoid permission issues when running as non-root.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--preload", "--no-sendfile", "wsgi:app"]
+# Run with Flask built-in server (simple, single process; no gunicorn)
+CMD ["python", "run.py"]
