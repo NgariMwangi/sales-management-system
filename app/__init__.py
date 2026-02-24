@@ -73,8 +73,15 @@ def create_app(config_name=None):
             'current_route': request.endpoint if request else None,
         }
     
-    # Auto-create tables in development, testing, and production
+    # Auto-create tables in development, testing, and production.
+    # Ignore "already exists" so multiple workers or existing DB don't crash the app.
     with app.app_context():
-        db.create_all()
-    
+        try:
+            db.create_all()
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate key" in str(e).lower():
+                pass  # Tables/types already present (e.g. another worker or prior run)
+            else:
+                raise
+
     return app

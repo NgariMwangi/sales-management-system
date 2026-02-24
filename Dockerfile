@@ -24,5 +24,6 @@ ENV FLASK_APP=run.py
 ENV PYTHONUNBUFFERED=1
 EXPOSE 5000
 
-# Default: run with gunicorn (override in docker-compose for flask run if needed)
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "wsgi:app"]
+# --preload: load app once in master so db.create_all() runs once (avoids race between workers).
+# No control server to avoid permission issues when running as non-root.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--preload", "--no-sendfile", "wsgi:app"]
