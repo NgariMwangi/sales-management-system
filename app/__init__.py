@@ -73,9 +73,8 @@ def create_app(config_name=None):
             'current_route': request.endpoint if request else None,
         }
     
-    # Auto-create tables in development only (use "flask db upgrade" in production)
+    # Auto-create tables in development, testing, and production
     with app.app_context():
-        if config_name == 'development':
-            db.create_all()
+        db.create_all()
     
     return app
