@@ -50,6 +50,13 @@ body {
   overflow-y: auto;
   border-right: 1px solid rgba(255,255,255,0.06);
 }
+.app-sidebar .sidebar-brand {
+  text-decoration: none;
+  border-bottom-color: rgba(255,255,255,0.08) !important;
+}
+.app-sidebar .sidebar-brand:hover {
+  opacity: 0.95;
+}
 .app-sidebar .nav {
   padding: 0.5rem 0;
 }
