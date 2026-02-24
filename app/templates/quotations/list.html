@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Quotations{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Quotations</h2>
+    <a href="{{ url_for('quotations.add') }}" class="btn btn-primary">New Quotation</a>
+</div>
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">All statuses</option>
+            {% for s in ['draft','sent','accepted','expired','cancelled'] %}
+            <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-secondary">Filter</button></div>
+</form>
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Quotation #</th>
+                <th>Customer</th>
+                <th>Valid Until</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for q in quotations.items %}
+            <tr>
+                <td><a href="{{ url_for('quotations.detail', quotation_id=q.id) }}">{{ q.quotation_number }}</a></td>
+                <td>{{ q.customer_name }}</td>
+                <td>{{ q.valid_until or '-' }}</td>
+                <td>{{ "%.2f"|format(q.grand_total|float) }}</td>
+                <td><span class="badge bg-secondary">{{ q.status }}</span></td>
+                <td>
+                    <a href="{{ url_for('quotations.detail', quotation_id=q.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    {% if q.status in ['draft','sent'] %}
+                    <form action="{{ url_for('quotations.convert_to_order', quotation_id=q.id) }}" method="post" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-success">Convert to Order</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="text-muted">No quotations found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if quotations.pages > 1 %}
+<nav>
+    <ul class="pagination">
+        {% for page_num in quotations.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        <li class="page-item {% if page_num == quotations.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('quotations.list', page=page_num, status=status) }}">{{ page_num or '...' }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

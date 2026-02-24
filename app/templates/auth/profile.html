@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <h2>Change Password</h2>
+    <form method="post" class="col-md-6">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            {{ form.current_password.label(class="form-label") }}
+            {{ form.current_password(class="form-control") }}
+            {% if form.current_password.errors %}<div class="text-danger">{{ form.current_password.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            {{ form.new_password.label(class="form-label") }}
+            {{ form.new_password(class="form-control") }}
+            {% if form.new_password.errors %}<div class="text-danger">{{ form.new_password.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            {{ form.confirm_password.label(class="form-label") }}
+            {{ form.confirm_password(class="form-control") }}
+            {% if form.confirm_password.errors %}<div class="text-danger">{{ form.confirm_password.errors[0] }}</div>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">{{ title }}</h2>
+<form method="post" id="orderForm">
+    {{ form.hidden_tag() }}
+    <div class="row mb-3">
+        <div class="col-md-4">
+            {{ form.customer_name.label(class="form-label") }}
+            {{ form.customer_name(class="form-control") }}
+        </div>
+        <div class="col-md-4">
+            {{ form.phone.label(class="form-label") }}
+            {{ form.phone(class="form-control") }}
+        </div>
+        <div class="col-md-4">
+            {{ form.email.label(class="form-label") }}
+            {{ form.email(class="form-control") }}
+        </div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Items</label>
+        <div class="border rounded p-2 mb-2">
+            <table class="table table-sm mb-0" id="itemsTable">
+                <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th><th></th></tr></thead>
+                <tbody id="itemsBody"></tbody>
+            </table>
+            <div class="mt-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="addExisting">Add from catalog</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="addManual">Add manual item</button>
+            </div>
+        </div>
+        <input type="hidden" name="items_json" id="itemsJson" value="">
+    </div>
+    {% if order_items_initial is defined %}
+    <script type="application/json" id="orderItemsInitial">{{ order_items_initial|tojson }}</script>
+    {% endif %}
+    <div class="row mb-3">
+        <div class="col-md-2">
+            {{ form.discount.label(class="form-label") }}
+            {{ form.discount(class="form-control") }}
+        </div>
+        <div class="col-md-2">
+            {{ form.tax.label(class="form-label") }} %
+            {{ form.tax(class="form-control") }}
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Subtotal</label>
+            <p class="form-control-plaintext" id="subtotalDisplay">0.00</p>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Grand Total</label>
+            <p class="form-control-plaintext fw-bold" id="grandTotalDisplay">0.00</p>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3">
+            {{ form.payment_method.label(class="form-label") }}
+            {{ form.payment_method(class="form-select") }}
+        </div>
+        <div class="col-md-3">
+            {{ form.payment_status.label(class="form-label") }}
+            {{ form.payment_status(class="form-select") }}
+        </div>
+        <div class="col-md-3">
+            {{ form.order_status.label(class="form-label") }}
+            {{ form.order_status(class="form-select") }}
+        </div>
+    </div>
+    <div class="mb-3">
+        {{ form.notes.label(class="form-label") }}
+        {{ form.notes(class="form-control", rows=2) }}
+    </div>
+    <button type="submit" class="btn btn-primary">Save Order</button>
+    <a href="{{ url_for('orders.list') }}" class="btn btn-secondary">Cancel</a>
+</form>
+
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="catalogQty" value="1" min="1" placeholder="1">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" id="productSearch" placeholder="Search products...">
+                </div>
+                <ul class="list-group" id="productList"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="manualModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manual Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Product Name</label>
+                    <input type="text" class="form-control" id="manualName" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="manualQty" value="1" min="1">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Price</label>
+                    <input type="number" step="0.01" class="form-control" id="manualPrice" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="addManualConfirm">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function(){
+    const itemsJsonEl = document.getElementById('itemsJson');
+    let items = [];
+    var initialEl = document.getElementById('orderItemsInitial');
+    if (initialEl && initialEl.textContent) {
+        try {
+            var parsed = JSON.parse(initialEl.textContent);
+            if (Array.isArray(parsed)) items = parsed;
+        } catch (e) {}
+    }
+    itemsJsonEl.value = JSON.stringify(items);
+    const tbody = document.getElementById('itemsBody');
+    const itemsJson = itemsJsonEl;
+    const discountEl = document.querySelector('input[name="discount"]');
+    const taxEl = document.querySelector('input[name="tax"]');
+
+    function syncHidden(){
+        itemsJson.value = JSON.stringify(items);
+    }
+    function recalc(){
+        let subtotal = items.reduce((s, i) => s + i.quantity * parseFloat(i.selling_price), 0);
+        let discount = parseFloat(discountEl.value) || 0;
+        let taxPct = parseFloat(taxEl.value) || 0;
+        let taxAmt = subtotal * (taxPct/100);
+        let grand = subtotal - discount + taxAmt;
+        document.getElementById('subtotalDisplay').textContent = subtotal.toFixed(2);
+        document.getElementById('grandTotalDisplay').textContent = grand.toFixed(2);
+        syncHidden();
+    }
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function render(){
+        tbody.innerHTML = items.map((it, idx) =>
+            '<tr data-idx="'+ idx +'"><td><input type="text" class="form-control form-control-sm item-name" data-idx="'+ idx +'" value="'+ escapeHtml(it.product_name || '') +'" placeholder="Product name" style="min-width:120px"></td><td>'+ it.quantity +'</td><td>'+ parseFloat(it.selling_price).toFixed(2) +'</td><td>'+ (it.quantity * parseFloat(it.selling_price)).toFixed(2) +'</td><td><button type="button" class="btn btn-sm btn-danger remove-item" data-idx="'+ idx +'">Remove</button></td></tr>'
+        ).join('');
+        tbody.querySelectorAll('.remove-item').forEach(btn => {
+            btn.onclick = () => { items.splice(parseInt(btn.dataset.idx),1); render(); recalc(); };
+        });
+        tbody.querySelectorAll('.item-name').forEach(function(inp) {
+            inp.addEventListener('input', function() { var idx = parseInt(this.dataset.idx, 10); if (items[idx]) items[idx].product_name = this.value.trim() || items[idx].product_name; syncHidden(); });
+        });
+        recalc();
+    }
+    document.getElementById('addExisting').onclick = () => {
+        document.getElementById('productList').innerHTML = '';
+        new bootstrap.Modal(document.getElementById('productModal')).show();
+        document.getElementById('productSearch').focus();
+    };
+    document.getElementById('productSearch').oninput = function(){
+        const q = this.value.trim();
+        if (q.length < 2) { document.getElementById('productList').innerHTML = ''; return; }
+        fetch('{{ url_for("products.api_search") }}?q='+encodeURIComponent(q))
+            .then(r=>r.json())
+            .then(products => {
+                const ul = document.getElementById('productList');
+                ul.innerHTML = products.map(p =>
+                    '<li class="list-group-item list-group-item-action" data-id="'+ p.id +'" data-name="'+ p.name +'" data-price="'+ p.selling_price +'" data-stock="'+ p.stock_quantity +'">'+ p.name +' (Stock: '+ p.stock_quantity +') - '+ p.selling_price +'</li>'
+                ).join('');
+                ul.querySelectorAll('li').forEach(li => {
+                    li.onclick = () => {
+                        var qtyInput = document.getElementById('catalogQty');
+                        var addQty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1;
+                        if (addQty < 1) addQty = 1;
+                        const id = li.dataset.id, name = li.dataset.name, price = li.dataset.price, stock = parseInt(li.dataset.stock, 10);
+                        if (addQty > stock) { alert('Insufficient stock. Max: '+ stock); return; }
+                        const existing = items.find(i => i.product_id === id);
+                        const qty = existing ? existing.quantity + addQty : addQty;
+                        if (qty > stock) { alert('Insufficient stock. Max: '+ stock); return; }
+                        if (existing) existing.quantity = qty;
+                        else items.push({ item_type: 'existing_product', product_id: id, product_name: name, quantity: addQty, selling_price: price });
+                        bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                        render();
+                    };
+                });
+            });
+    };
+    document.getElementById('addManual').onclick = () => new bootstrap.Modal(document.getElementById('manualModal')).show();
+    document.getElementById('addManualConfirm').onclick = () => {
+        const name = document.getElementById('manualName').value.trim();
+        const qty = parseInt(document.getElementById('manualQty').value) || 1;
+        const price = document.getElementById('manualPrice').value;
+        if (!name || !price) return;
+        items.push({ item_type: 'manual_entry', product_id: null, product_name: name, quantity: qty, selling_price: price });
+        document.getElementById('manualName').value = ''; document.getElementById('manualQty').value = '1'; document.getElementById('manualPrice').value = '';
+        bootstrap.Modal.getInstance(document.getElementById('manualModal')).hide();
+        render();
+    };
+    discountEl.addEventListener('input', recalc);
+    taxEl.addEventListener('input', recalc);
+    document.getElementById('orderForm').onsubmit = function() {
+        if (items.length === 0) { alert('Add at least one item.'); return false; }
+        tbody.querySelectorAll('tr[data-idx]').forEach(function(row) {
+            var idx = parseInt(row.dataset.idx, 10);
+            var nameInp = row.querySelector('.item-name');
+            if (items[idx] && nameInp) items[idx].product_name = nameInp.value.trim() || items[idx].product_name;
+        });
+        syncHidden();
+        return true;
+    };
+    render();
+})();
+</script>
+{% endblock %}

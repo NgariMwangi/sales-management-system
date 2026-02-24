@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Adjust Stock - {{ product.name }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">Adjust Stock: {{ product.name }}</h2>
+<p>Current stock: <strong>{{ product.stock_quantity }}</strong></p>
+<form method="post">
+    {{ form.hidden_tag() }}
+    <div class="row col-md-6">
+        <div class="mb-3">
+            {{ form.operation.label(class="form-label") }}
+            {{ form.operation(class="form-select") }}
+        </div>
+        <div class="mb-3">
+            {{ form.quantity.label(class="form-label") }}
+            {{ form.quantity(class="form-control") }}
+            {% if form.quantity.errors %}<div class="text-danger">{{ form.quantity.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            {{ form.reason.label(class="form-label") }}
+            {{ form.reason(class="form-control") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Update Stock</button>
+        <a href="{{ url_for('products.list') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

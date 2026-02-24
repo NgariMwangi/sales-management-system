@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sales Management{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
+        <div class="container-fluid px-0">
+            <button class="btn btn-link text-white d-lg-none me-2 p-2" type="button" id="sidebarToggle" aria-label="Menu">
+                <i class="bi bi-list fs-4"></i>
+            </button>
+            <a class="navbar-brand" href="{{ url_for('dashboard.index') }}"><i class="bi bi-graph-up-arrow"></i> Sales Manager</a>
+            <div class="d-flex align-items-center ms-auto">
+                <span class="text-white-50 small d-none d-sm-inline me-2">{{ current_user.full_name or current_user.username }}</span>
+                <a class="btn btn-outline-light btn-sm me-1" href="{{ url_for('auth.profile') }}"><i class="bi bi-person"></i></a>
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Logout</a>
+            </div>
+        </div>
+    </nav>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <div class="app-wrapper">
+        <aside class="app-sidebar" id="appSidebar">
+            <nav class="nav flex-column">
+                <a class="nav-link {{ 'active' if request.endpoint == 'dashboard.index' else '' }}" href="{{ url_for('dashboard.index') }}"><i class="bi bi-speedometer2"></i>Dashboard</a>
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('categories.') else '' }}" href="{{ url_for('categories.list') }}"><i class="bi bi-tags"></i>Categories</a>
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('products.') else '' }}" href="{{ url_for('products.list') }}"><i class="bi bi-box-seam"></i>Products</a>
+                {% if current_user.can_manage_orders() %}
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('orders.') else '' }}" href="{{ url_for('orders.list') }}"><i class="bi bi-cart"></i>Orders</a>
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('quotations.') else '' }}" href="{{ url_for('quotations.list') }}"><i class="bi bi-file-text"></i>Quotations</a>
+                {% endif %}
+                {% if current_user.can_manage_deliveries() %}
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('deliveries.') else '' }}" href="{{ url_for('deliveries.list') }}"><i class="bi bi-truck"></i>Deliveries</a>
+                {% endif %}
+                {% if current_user.can_view_reports() %}
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('reports.') else '' }}" href="{{ url_for('reports.index') }}"><i class="bi bi-graph-up"></i>Reports</a>
+                {% endif %}
+                {% if current_user.can_manage_users() %}
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('users.') else '' }}" href="{{ url_for('users.list') }}"><i class="bi bi-people"></i>Users</a>
+                {% endif %}
+                {% if current_user.can_manage_settings() %}
+                <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('settings.') and request.endpoint != 'settings.audit_log' else '' }}" href="{{ url_for('settings.index') }}"><i class="bi bi-gear"></i>Settings</a>
+                {% endif %}
+                {% if current_user.is_admin() %}
+                <a class="nav-link {{ 'active' if request.endpoint == 'settings.audit_log' else '' }}" href="{{ url_for('settings.audit_log') }}"><i class="bi bi-journal-text"></i>Audit Log</a>
+                {% endif %}
+            </nav>
+        </aside>
+        <main class="app-main">
+            <div class="content-inner">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">{{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    <script>
+    (function() {
+        var sidebar = document.getElementById('appSidebar');
+        var backdrop = document.getElementById('sidebarBackdrop');
+        var toggle = document.getElementById('sidebarToggle');
+        if (sidebar && toggle) {
+            function openSidebar() { sidebar.classList.add('show'); if (backdrop) backdrop.classList.add('show'); }
+            function closeSidebar() { sidebar.classList.remove('show'); if (backdrop) backdrop.classList.remove('show'); }
+            toggle.addEventListener('click', function() { sidebar.classList.contains('show') ? closeSidebar() : openSidebar(); });
+            if (backdrop) backdrop.addEventListener('click', closeSidebar);
+            window.addEventListener('resize', function() { if (window.innerWidth >= 992) closeSidebar(); });
+        }
+    })();
+    </script>
+    {% else %}
+    {% block auth_content %}{% endblock %}
+    {% endif %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

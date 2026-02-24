@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ order.order_number }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>@media print{ .no-print{ display:none } }</style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="d-flex justify-content-between no-print mb-3">
+        <a href="{{ url_for('orders.detail', order_id=order.id) }}" class="btn btn-secondary">Back</a>
+        <div>
+            <a href="{{ url_for('orders.pdf', order_id=order.id) }}" class="btn btn-outline-danger me-2" download>Export PDF</a>
+            {% if order.payment_status in ['paid', 'partial'] %}
+            <a href="{{ url_for('orders.receipt', order_id=order.id, format='a4') }}" class="btn btn-outline-success me-2" download>Receipt (A4)</a>
+            <a href="{{ url_for('orders.receipt', order_id=order.id, format='thermal') }}" class="btn btn-outline-success me-2" download>Receipt (Thermal)</a>
+            {% endif %}
+            <button onclick="window.print()" class="btn btn-primary">Print</button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-6">
+            <h4>Invoice</h4>
+            <p class="mb-0"><strong>Order:</strong> {{ order.order_number }}</p>
+            <p class="mb-0"><strong>Date:</strong> {{ order.order_date }}</p>
+        </div>
+        <div class="col-6 text-end">
+            <p class="mb-0"><strong>Bill To</strong></p>
+            <p class="mb-0">{{ order.customer_name }}</p>
+            <p class="mb-0">{{ order.phone or '' }}</p>
+            <p class="mb-0">{{ order.email or '' }}</p>
+        </div>
+    </div>
+    <table class="table table-bordered mt-4">
+        <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+        <tbody>
+        {% for oi in order.items %}
+        <tr>
+            <td>{{ oi.product_name }}</td>
+            <td>{{ oi.quantity }}</td>
+            <td>{{ "%.2f"|format(oi.selling_price|float) }}</td>
+            <td>{{ "%.2f"|format(oi.subtotal|float) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p class="text-end">
+        Subtotal: {{ "%.2f"|format(order.total_amount|float) }} |
+        Discount: {{ "%.2f"|format(order.discount|float) }} |
+        Tax: {{ "%.2f"|format(order.tax|float) }} |
+        <strong>Grand Total: {{ "%.2f"|format(order.grand_total|float) }}</strong>
+    </p>
+</div>
+</body>
+</html>

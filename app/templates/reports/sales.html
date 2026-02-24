@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sales Report{% endblock %}
+{% block content %}
+<h2 class="mb-4">Reports</h2>
+<form method="get" class="row g-2 mb-4">
+    <div class="col-auto">
+        <select name="report_type" class="form-select">
+            <option value="sales" {% if request.args.get('report_type') == 'sales' %}selected{% endif %}>Sales</option>
+            <option value="product_performance" {% if request.args.get('report_type') == 'product_performance' %}selected{% endif %}>Product Performance</option>
+            <option value="delivery_performance" {% if request.args.get('report_type') == 'delivery_performance' %}selected{% endif %}>Delivery Performance</option>
+            <option value="stock" {% if request.args.get('report_type') == 'stock' %}selected{% endif %}>Stock</option>
+        </select>
+    </div>
+    <div class="col-auto"><input type="date" name="date_from" class="form-control" value="{{ date_from }}"></div>
+    <div class="col-auto"><input type="date" name="date_to" class="form-control" value="{{ date_to }}"></div>
+    <div class="col-auto"><select name="format" class="form-select"><option value="html">View</option><option value="pdf">PDF</option><option value="excel">Excel</option></select></div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary">Generate</button></div>
+</form>
+<h5>Sales Report ({{ date_from }} to {{ date_to }})</h5>
+<p><strong>Total Revenue:</strong> {{ "%.2f"|format(data.total_revenue|float) }} | <strong>Orders:</strong> {{ data.count }}</p>
+<div class="table-responsive">
+    <table class="table">
+        <thead><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Total</th></tr></thead>
+        <tbody>
+        {% for o in data.orders %}
+        <tr><td>{{ o.order_number }}</td><td>{{ o.order_date }}</td><td>{{ o.customer_name }}</td><td>{{ "%.2f"|format(o.grand_total|float) }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

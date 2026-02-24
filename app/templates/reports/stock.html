@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Stock Report{% endblock %}
+{% block content %}
+<h2 class="mb-4">Reports</h2>
+<form method="get" class="row g-2 mb-4">
+    <div class="col-auto"><select name="report_type" class="form-select"><option value="sales">Sales</option><option value="product_performance">Product Performance</option><option value="delivery_performance">Delivery Performance</option><option value="stock" selected>Stock</option></select></div>
+    <div class="col-auto"><input type="date" name="date_from" class="form-control" value="{{ date_from }}"></div>
+    <div class="col-auto"><input type="date" name="date_to" class="form-control" value="{{ date_to }}"></div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary">Generate</button></div>
+</form>
+<h5>Stock Report</h5>
+<p><strong>Low stock:</strong> {{ data.low_stock|length }} | <strong>Out of stock:</strong> {{ data.out_of_stock|length }}</p>
+<div class="table-responsive">
+    <table class="table">
+        <thead><tr><th>Product</th><th>SKU</th><th>Stock</th><th>Min Level</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for p in data.products %}
+        <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.sku or '-' }}</td>
+            <td>{{ p.stock_quantity }}</td>
+            <td>{{ p.min_stock_level }}</td>
+            <td>{% if p.stock_quantity <= 0 %}<span class="badge bg-danger">Out</span>{% elif p.is_low_stock %}<span class="badge bg-warning">Low</span>{% else %}<span class="badge bg-success">OK</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

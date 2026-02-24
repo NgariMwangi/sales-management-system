@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Products</h1>
+    {% if current_user.role in ['admin','manager','sales'] %}
+    <a href="{{ url_for('products.add') }}" class="btn btn-primary">Add Product</a>
+    {% endif %}
+</div>
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-sm-6 col-md-auto">
+                <label class="form-label small mb-0">Search</label>
+                <input type="text" name="q" class="form-control form-control-sm" placeholder="Name, SKU..." value="{{ search }}">
+            </div>
+            <div class="col-6 col-md-auto">
+                <label class="form-label small mb-0">Category</label>
+                <select name="category" class="form-select form-select-sm">
+            <option value="">All categories</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}" {% if category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-auto">
+                <label class="form-label small mb-0">Stock</label>
+                <select name="stock" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="low" {% if stock_filter == 'low' %}selected{% endif %}>Low</option>
+                    <option value="out" {% if stock_filter == 'out' %}selected{% endif %}>Out</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-auto">
+                <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-body p-0">
+<div class="table-responsive">
+    <table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>Buying</th>
+                <th>Selling</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in products.items %}
+            <tr>
+                <td><a href="{{ url_for('products.edit', product_id=p.id) }}">{{ p.name }}</a></td>
+                <td>{{ p.sku or '-' }}</td>
+                <td>{{ p.category.name if p.category else '-' }}</td>
+                <td>{{ "%.2f"|format(p.buying_price|float) if p.buying_price is not none else '-' }}</td>
+                <td>{{ "%.2f"|format(p.selling_price|float) if p.selling_price is not none else '-' }}</td>
+                <td>{{ p.stock_quantity }}</td>
+                <td>
+                    {% if p.is_out_of_stock %}<span class="badge bg-danger">Out</span>
+                    {% elif p.is_low_stock %}<span class="badge bg-warning">Low</span>
+                    {% else %}<span class="badge bg-success">OK</span>{% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('products.stock', product_id=p.id) }}" class="btn btn-sm btn-outline-secondary">Stock</a>
+                    <a href="{{ url_for('products.sales_history', product_id=p.id) }}" class="btn btn-sm btn-outline-info">History</a>
+                    {% if current_user.role in ['admin','manager'] %}
+                    <form action="{{ url_for('products.delete', product_id=p.id) }}" method="post" class="d-inline" onsubmit="return confirm('Deactivate this product?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8" class="text-muted">No products found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if products.pages > 1 %}
+<nav class="p-2 border-top">
+    <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% for page_num in products.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        <li class="page-item {% if page_num == products.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('products.list', page=page_num, q=search, category=category_id, stock=stock_filter) }}">{{ page_num or '...' }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Sales History - {{ product.name }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">Sales History: {{ product.name }}</h2>
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Order</th>
+                <th>Date</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for oi in items %}
+            <tr>
+                <td><a href="{{ url_for('orders.detail', order_id=oi.order_id) }}">{{ oi.order.order_number }}</a></td>
+                <td>{{ oi.order.order_date }}</td>
+                <td>{{ oi.quantity }}</td>
+                <td>{{ "%.2f"|format(oi.selling_price|float) }}</td>
+                <td>{{ "%.2f"|format(oi.subtotal|float) }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" class="text-muted">No sales history.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<a href="{{ url_for('products.list') }}" class="btn btn-secondary">Back to Products</a>
+{% endblock %}

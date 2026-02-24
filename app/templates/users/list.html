@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Users</h2>
+    <a href="{{ url_for('users.add') }}" class="btn btn-primary">Add User</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead><tr><th>Username</th><th>Email</th><th>Full Name</th><th>Role</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ u.email }}</td>
+            <td>{{ u.full_name or '-' }}</td>
+            <td><span class="badge bg-secondary">{{ u.role }}</span></td>
+            <td>{% if u.is_active %}Yes{% else %}No{% endif %}</td>
+            <td><a href="{{ url_for('users.edit', user_id=u.id) }}" class="btn btn-sm btn-outline-primary">Edit</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

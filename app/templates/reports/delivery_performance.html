@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Delivery Performance Report{% endblock %}
+{% block content %}
+<h2 class="mb-4">Reports</h2>
+<form method="get" class="row g-2 mb-4">
+    <div class="col-auto"><select name="report_type" class="form-select"><option value="sales">Sales</option><option value="product_performance">Product Performance</option><option value="delivery_performance" selected>Delivery Performance</option><option value="stock">Stock</option></select></div>
+    <div class="col-auto"><input type="date" name="date_from" class="form-control" value="{{ date_from }}"></div>
+    <div class="col-auto"><input type="date" name="date_to" class="form-control" value="{{ date_to }}"></div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary">Generate</button></div>
+</form>
+<h5>Delivery Performance ({{ date_from }} to {{ date_to }})</h5>
+<p><strong>Total:</strong> {{ data.total }} | <strong>Delivered:</strong> {{ data.delivered }} | <strong>Success Rate:</strong> {{ "%.1f"|format(data.rate) }}%</p>
+<div class="table-responsive">
+    <table class="table">
+        <thead><tr><th>Delivery #</th><th>Customer</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>
+        {% for d in data.deliveries %}
+        <tr><td>{{ d.delivery_number }}</td><td>{{ d.customer_name }}</td><td>{{ d.status }}</td><td>{{ d.created_at.date() if d.created_at else '-' }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

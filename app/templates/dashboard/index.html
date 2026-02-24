@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Total Products</h6>
+                <h3>{{ total_products }}</h3>
+                <a href="{{ url_for('products.list') }}" class="btn btn-sm btn-outline-primary">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Today's Orders</h6>
+                <h3>{{ today_orders }}</h3>
+                <a href="{{ url_for('orders.list') }}" class="btn btn-sm btn-outline-primary">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Pending Deliveries</h6>
+                <h3>{{ pending_deliveries }}</h3>
+                <a href="{{ url_for('deliveries.list') }}" class="btn btn-sm btn-outline-primary">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Low Stock Alerts</h6>
+                <h3 class="text-warning">{{ low_stock_count }}</h3>
+                <a href="{{ url_for('products.list') }}?stock=low" class="btn btn-sm btn-outline-warning">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Today's Revenue</h6>
+                <h3>{{ "%.2f"|format(today_revenue|float) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">Sales Trend (Last 30 Days)</div>
+            <div class="card-body">
+                <canvas id="salesTrendChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">Payment Status</div>
+            <div class="card-body">
+                <canvas id="paymentChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">Top Selling Products</div>
+            <div class="card-body">
+                <canvas id="topProductsChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Recent Orders</span>
+                <a href="{{ url_for('orders.list') }}" class="btn btn-sm btn-outline-primary">All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th></th></tr></thead>
+                    <tbody>
+                    {% for o in recent_orders %}
+                    <tr>
+                        <td>{{ o.order_number }}</td>
+                        <td>{{ o.customer_name }}</td>
+                        <td>{{ "%.2f"|format(o.grand_total|float) }}</td>
+                        <td><a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-link">View</a></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="text-muted">No recent orders</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% if low_stock_products %}
+<div class="card border-warning">
+    <div class="card-header bg-warning bg-opacity-25">Low Stock Alerts</div>
+    <div class="card-body">
+        <ul class="mb-0">
+        {% for p in low_stock_products %}
+            <li><a href="{{ url_for('products.stock', product_id=p.id) }}">{{ p.name }}</a> — {{ p.stock_quantity }} left (min: {{ p.min_stock_level }})</li>
+        {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+    const trendCtx = document.getElementById('salesTrendChart');
+    if (trendCtx) {
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: {{ trend_labels|tojson }},
+                datasets: [{ label: 'Revenue', data: {{ trend_data|tojson }}, borderColor: 'rgb(13, 110, 253)', fill: true, tension: 0.3 }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    }
+    const payCtx = document.getElementById('paymentChart');
+    if (payCtx) {
+        new Chart(payCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ payment_labels|tojson }},
+                datasets: [{ data: {{ payment_data|tojson }}, backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545'] }]
+            },
+            options: { responsive: true }
+        });
+    }
+    const topCtx = document.getElementById('topProductsChart');
+    if (topCtx) {
+        new Chart(topCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ top_product_names|tojson }},
+                datasets: [{ label: 'Quantity Sold', data: {{ top_product_qty|tojson }}, backgroundColor: 'rgba(13, 110, 253, 0.7)' }]
+            },
+            options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
+        });
+    }
+})();
+</script>
+{% endblock %}

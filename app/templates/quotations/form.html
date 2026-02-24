@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">{{ title }}</h2>
+<form method="post" id="quotationForm">
+    {{ form.hidden_tag() }}
+    <div class="row mb-3">
+        <div class="col-md-4">{{ form.customer_name.label(class="form-label") }}{{ form.customer_name(class="form-control") }}</div>
+        <div class="col-md-4">{{ form.phone.label(class="form-label") }}{{ form.phone(class="form-control") }}</div>
+        <div class="col-md-4">{{ form.email.label(class="form-label") }}{{ form.email(class="form-control") }}</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">{{ form.valid_until.label(class="form-label") }}{{ form.valid_until(class="form-control") }}</div>
+        <div class="col-md-2">{{ form.discount.label(class="form-label") }}{{ form.discount(class="form-control") }}</div>
+        <div class="col-md-2">{{ form.tax.label(class="form-label") }}{{ form.tax(class="form-control") }} %</div>
+        <div class="col-md-2">{{ form.status.label(class="form-label") }}{{ form.status(class="form-select") }}</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Items</label>
+        <div class="border rounded p-2">
+            <table class="table table-sm mb-0" id="itemsTable">
+                <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Disc %</th><th>Subtotal</th><th></th></tr></thead>
+                <tbody id="itemsBody"></tbody>
+            </table>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addExisting">Add from catalog</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addManual">Add manual</button>
+        </div>
+        <input type="hidden" name="items_json" id="itemsJson" value="">
+    </div>
+    {% if quotation_items_initial is defined %}
+    <script type="application/json" id="quotationItemsInitial">{{ quotation_items_initial|tojson }}</script>
+    {% endif %}
+    <div class="row mb-3 align-items-end">
+        <div class="col-md-2"><label class="form-label">Subtotal</label><p class="form-control-plaintext mb-0 fw-semibold" id="quotationSubtotal">0.00</p></div>
+        <div class="col-md-2"><label class="form-label">Discount</label><p class="form-control-plaintext mb-0" id="quotationDiscountDisplay">0.00</p></div>
+        <div class="col-md-2"><label class="form-label">Tax</label><p class="form-control-plaintext mb-0" id="quotationTaxDisplay">0.00</p></div>
+        <div class="col-md-2"><label class="form-label">Grand Total</label><p class="form-control-plaintext mb-0 fs-5 fw-bold text-primary" id="quotationGrandTotal">0.00</p></div>
+    </div>
+    <div class="mb-3">{{ form.notes.label(class="form-label") }}{{ form.notes(class="form-control", rows=2) }}</div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ url_for('quotations.list') }}" class="btn btn-secondary">Cancel</a>
+</form>
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Select Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="catalogQty" value="1" min="1" placeholder="1">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" id="productSearch" placeholder="Search products...">
+                </div>
+                <ul class="list-group" id="productList"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="manualModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Manual Item</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">Name</label><input type="text" class="form-control" id="manualName"></div>
+                <div class="mb-2"><label class="form-label">Qty</label><input type="number" class="form-control" id="manualQty" value="1"></div>
+                <div class="mb-2"><label class="form-label">Unit Price</label><input type="number" step="0.01" class="form-control" id="manualPrice"></div>
+                <div class="mb-2"><label class="form-label">Discount %</label><input type="number" step="0.01" class="form-control" id="manualDisc" value="0"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-primary" id="addManualConfirm">Add</button></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function(){
+    const itemsJsonEl = document.getElementById('itemsJson');
+    let items = [];
+    var initialEl = document.getElementById('quotationItemsInitial');
+    if (initialEl && initialEl.textContent) {
+        try {
+            var parsed = JSON.parse(initialEl.textContent);
+            if (Array.isArray(parsed)) items = parsed;
+        } catch (e) {}
+    }
+    itemsJsonEl.value = JSON.stringify(items);
+    const tbody = document.getElementById('itemsBody');
+    const itemsJson = itemsJsonEl;
+    const discountEl = document.querySelector('input[name="discount"]');
+    const taxEl = document.querySelector('input[name="tax"]');
+    function sync(){ itemsJson.value = JSON.stringify(items); }
+    function getSubtotal(){
+        return items.reduce(function(s, it){
+            var price = parseFloat(it.unit_price) || 0;
+            var qty = parseInt(it.quantity, 10) || 0;
+            var disc = parseFloat(it.discount_percent || 0) / 100;
+            return s + qty * price * (1 - disc);
+        }, 0);
+    }
+    function updateTotals(){
+        var subtotal = getSubtotal();
+        var discount = parseFloat(discountEl && discountEl.value ? discountEl.value : 0) || 0;
+        var taxPct = parseFloat(taxEl && taxEl.value ? taxEl.value : 0) || 0;
+        var afterDiscount = subtotal - discount;
+        var taxAmt = afterDiscount * (taxPct / 100);
+        var grand = afterDiscount + taxAmt;
+        var el = document.getElementById('quotationSubtotal'); if (el) el.textContent = subtotal.toFixed(2);
+        el = document.getElementById('quotationDiscountDisplay'); if (el) el.textContent = discount.toFixed(2);
+        el = document.getElementById('quotationTaxDisplay'); if (el) el.textContent = taxAmt.toFixed(2);
+        el = document.getElementById('quotationGrandTotal'); if (el) el.textContent = grand.toFixed(2);
+    }
+    function updateRow(idx) {
+        var it = items[idx];
+        if (!it) return;
+        var qty = parseInt(it.quantity, 10) || 0;
+        var price = parseFloat(it.unit_price) || 0;
+        var disc = parseFloat(it.discount_percent || 0) / 100;
+        var sub = qty * price * (1 - disc);
+        var row = tbody.querySelector('tr[data-idx="'+ idx +'"]');
+        if (row) {
+            var subEl = row.querySelector('.item-subtotal');
+            if (subEl) subEl.textContent = sub.toFixed(2);
+        }
+        updateTotals();
+        sync();
+    }
+    function render(){
+        tbody.innerHTML = items.map((it, idx) => {
+            const price = parseFloat(it.unit_price) || 0; const qty = parseInt(it.quantity, 10) || 1; const discPct = parseFloat(it.discount_percent||0) || 0;
+            const sub = qty * price * (1 - discPct/100);
+            return '<tr data-idx="'+ idx +'">' +
+                '<td><input type="text" class="form-control form-control-sm item-name" data-idx="'+ idx +'" value="'+ escapeHtml(it.product_name || '') +'" placeholder="Product name" style="min-width:120px"></td>' +
+                '<td><input type="number" class="form-control form-control-sm item-qty" data-idx="'+ idx +'" value="'+ qty +'" min="1" style="width:70px"></td>' +
+                '<td><input type="number" step="0.01" class="form-control form-control-sm item-price" data-idx="'+ idx +'" value="'+ price +'" style="width:80px"></td>' +
+                '<td><input type="number" step="0.01" class="form-control form-control-sm item-disc" data-idx="'+ idx +'" value="'+ discPct +'" style="width:60px"></td>' +
+                '<td class="item-subtotal text-end">'+ sub.toFixed(2) +'</td>' +
+                '<td><button type="button" class="btn btn-sm btn-danger remove-item" data-idx="'+ idx +'">Remove</button></td></tr>';
+        }).join('');
+        tbody.querySelectorAll('.remove-item').forEach(btn => { btn.onclick = () => { items.splice(parseInt(btn.dataset.idx),1); render(); }; });
+        tbody.querySelectorAll('.item-name').forEach(function(inp) {
+            inp.addEventListener('input', function() { var idx = parseInt(this.dataset.idx, 10); if (items[idx]) items[idx].product_name = this.value.trim() || items[idx].product_name; sync(); });
+        });
+        tbody.querySelectorAll('.item-qty, .item-price, .item-disc').forEach(function(inp) {
+            inp.addEventListener('input', function() {
+                var idx = parseInt(this.dataset.idx, 10);
+                var row = tbody.querySelector('tr[data-idx="'+ idx +'"]');
+                if (!row || !items[idx]) return;
+                if (row.querySelector('.item-name')) items[idx].product_name = row.querySelector('.item-name').value.trim() || items[idx].product_name;
+                var qty = parseInt(row.querySelector('.item-qty').value, 10) || 1;
+                var price = parseFloat(row.querySelector('.item-price').value) || 0;
+                var disc = parseFloat(row.querySelector('.item-disc').value) || 0;
+                items[idx].quantity = qty;
+                items[idx].unit_price = String(price);
+                items[idx].discount_percent = String(disc);
+                updateRow(idx);
+            });
+        });
+        sync();
+        updateTotals();
+    }
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    if (discountEl) discountEl.addEventListener('input', updateTotals);
+    if (taxEl) taxEl.addEventListener('input', updateTotals);
+    document.getElementById('addExisting').onclick = () => {
+        document.getElementById('productList').innerHTML = '';
+        new bootstrap.Modal(document.getElementById('productModal')).show();
+    };
+    document.getElementById('productSearch').oninput = function(){
+        const q = this.value.trim();
+        if (q.length < 2) return;
+        fetch('{{ url_for("products.api_search") }}?q='+encodeURIComponent(q)).then(r=>r.json()).then(products => {
+            const ul = document.getElementById('productList');
+            ul.innerHTML = products.map(p => '<li class="list-group-item list-group-item-action" data-id="'+ p.id +'" data-name="'+ p.name +'" data-price="'+ p.selling_price +'">'+ p.name +' - '+ p.selling_price +'</li>').join('');
+            ul.querySelectorAll('li').forEach(li => {
+                li.onclick = () => {
+                    var qtyInput = document.getElementById('catalogQty');
+                    var qty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1;
+                    if (qty < 1) qty = 1;
+                    items.push({ item_type: 'existing_product', product_id: li.dataset.id, product_name: li.dataset.name, quantity: qty, unit_price: li.dataset.price, discount_percent: '0' });
+                    bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                    render();
+                };
+            });
+        });
+    };
+    document.getElementById('addManual').onclick = () => new bootstrap.Modal(document.getElementById('manualModal')).show();
+    document.getElementById('addManualConfirm').onclick = () => {
+        const name = document.getElementById('manualName').value.trim();
+        const qty = parseInt(document.getElementById('manualQty').value) || 1;
+        const price = document.getElementById('manualPrice').value;
+        const disc = document.getElementById('manualDisc').value || '0';
+        if (!name || !price) return;
+        items.push({ item_type: 'manual_entry', product_id: null, product_name: name, quantity: qty, unit_price: price, discount_percent: disc });
+        bootstrap.Modal.getInstance(document.getElementById('manualModal')).hide();
+        render();
+    };
+    document.getElementById('quotationForm').onsubmit = function() {
+        if (items.length === 0) { alert('Add at least one item.'); return false; }
+        var rows = tbody.querySelectorAll('tr[data-idx]');
+        for (var i = 0; i < rows.length; i++) {
+            var idx = parseInt(rows[i].dataset.idx, 10);
+            if (items[idx] === undefined) continue;
+            var nameInp = rows[i].querySelector('.item-name');
+            var qtyInp = rows[i].querySelector('.item-qty');
+            var priceInp = rows[i].querySelector('.item-price');
+            var discInp = rows[i].querySelector('.item-disc');
+            if (nameInp) items[idx].product_name = nameInp.value.trim() || items[idx].product_name;
+            if (qtyInp) items[idx].quantity = parseInt(qtyInp.value, 10) || 1;
+            if (priceInp) items[idx].unit_price = String(parseFloat(priceInp.value) || 0);
+            if (discInp) items[idx].discount_percent = String(parseFloat(discInp.value) || 0);
+        }
+        sync();
+        return true;
+    };
+    render();
+    updateTotals();
+})();
+</script>
+{% endblock %}

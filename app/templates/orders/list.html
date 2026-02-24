@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Orders</h1>
+    <a href="{{ url_for('orders.add') }}" class="btn btn-primary">New Order</a>
+</div>
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">All statuses</option>
+            {% for s in ['pending','processing','completed','cancelled'] %}
+            <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <select name="payment" class="form-select">
+            <option value="">All payments</option>
+            {% for s in ['pending','paid','partial','cancelled'] %}
+            <option value="{{ s }}" {% if payment == s %}selected{% endif %}>{{ s|title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-secondary btn-sm">Filter</button></div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-body p-0">
+<div class="table-responsive">
+    <table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>Order #</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Total</th>
+                <th>Payment</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for o in orders.items %}
+            <tr>
+                <td><a href="{{ url_for('orders.detail', order_id=o.id) }}">{{ o.order_number }}</a></td>
+                <td>{{ o.order_date }}</td>
+                <td>{{ o.customer_name }}</td>
+                <td>{{ "%.2f"|format(o.grand_total|float) }}</td>
+                <td><span class="badge bg-secondary">{{ o.payment_status }}</span></td>
+                <td><span class="badge bg-info">{{ o.order_status }}</span></td>
+                <td>
+                    <a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{{ url_for('orders.invoice', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">Invoice</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7" class="text-muted">No orders found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if orders.pages > 1 %}
+<nav class="p-2 border-top">
+    <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% for page_num in orders.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        <li class="page-item {% if page_num == orders.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('orders.list', page=page_num, status=status, payment=payment) }}">{{ page_num or '...' }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+    </div>
+</div>
+{% endblock %}

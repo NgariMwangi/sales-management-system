@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sales Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex align-items-center min-vh-100">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card shadow">
+                    <div class="card-body p-5">
+                        <h2 class="card-title text-center mb-4">Sales Management</h2>
+                        <form method="post" action="{{ url_for('auth.login') }}">
+                            {{ form.hidden_tag() }}
+                            <div class="mb-3">
+                                {{ form.username.label(class="form-label") }}
+                                {{ form.username(class="form-control", autofocus=true) }}
+                                {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors[0] }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3">
+                                {{ form.password.label(class="form-label") }}
+                                {{ form.password(class="form-control") }}
+                                {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors[0] }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3 form-check">
+                                {{ form.remember_me(class="form-check-input") }}
+                                {{ form.remember_me.label(class="form-check-label") }}
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Login</button>
+                        </form>
+                        <p class="text-center mt-3 mb-0">
+                            <a href="{{ url_for('auth.register') }}">Create first account</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

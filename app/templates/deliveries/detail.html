@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Delivery {{ delivery.delivery_number }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Delivery {{ delivery.delivery_number }}</h2>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('deliveries.pdf', delivery_id=delivery.id) }}" class="btn btn-outline-danger" download>Export PDF</a>
+        {% if current_user.role == 'delivery' and delivery.assigned_to_id == current_user.id or current_user.role in ['admin','manager','sales'] %}
+        <form method="post" action="{{ url_for('deliveries.update_status', delivery_id=delivery.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="status" class="form-select form-select-sm d-inline-block w-auto">
+                {% for s in ['pending','assigned','in_transit','delivered','failed','cancelled'] %}
+                <option value="{{ s }}" {% if delivery.status == s %}selected{% endif %}>{{ s|replace('_',' ')|title }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">Update Status</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+<p><strong>Customer:</strong> {{ delivery.customer_name }} | <strong>Phone:</strong> {{ delivery.phone or '-' }}</p>
+<p><strong>Address:</strong> {{ delivery.delivery_address }}</p>
+<p><strong>Scheduled:</strong> {{ delivery.scheduled_date or '-' }} | <strong>Delivered:</strong> {{ delivery.delivery_date or '-' }}</p>
+<p><strong>Assigned to:</strong> {{ delivery.assigned_to_user.full_name or delivery.assigned_to_user.username if delivery.assigned_to_user else '-' }}</p>
+{% if delivery.order %}<p><strong>Order:</strong> <a href="{{ url_for('orders.detail', order_id=delivery.order_id) }}">{{ delivery.order.order_number }}</a></p>{% endif %}
+<table class="table">
+    <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th></tr></thead>
+    <tbody>
+    {% for di in delivery.items %}
+    <tr><td>{{ di.product_name }}</td><td>{{ di.quantity }}</td><td>{{ "%.2f"|format(di.unit_price|float) }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% if delivery.delivery_notes %}<p><strong>Notes:</strong> {{ delivery.delivery_notes }}</p>{% endif %}
+<a href="{{ url_for('deliveries.list') }}" class="btn btn-secondary">Back</a>
+{% endblock %}

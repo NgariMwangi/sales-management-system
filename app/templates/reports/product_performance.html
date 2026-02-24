@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Product Performance Report{% endblock %}
+{% block content %}
+<h2 class="mb-4">Reports</h2>
+<form method="get" class="row g-2 mb-4">
+    <div class="col-auto"><select name="report_type" class="form-select"><option value="sales">Sales</option><option value="product_performance" selected>Product Performance</option><option value="delivery_performance">Delivery Performance</option><option value="stock">Stock</option></select></div>
+    <div class="col-auto"><input type="date" name="date_from" class="form-control" value="{{ date_from }}"></div>
+    <div class="col-auto"><input type="date" name="date_to" class="form-control" value="{{ date_to }}"></div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary">Generate</button></div>
+</form>
+<h5>Product Performance ({{ date_from }} to {{ date_to }})</h5>
+<div class="table-responsive">
+    <table class="table">
+        <thead><tr><th>Product</th><th>Qty Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
+        <tbody>
+        {% for r in data.rows %}
+        <tr>
+            <td>{{ r.product_name }}</td>
+            <td>{{ r.qty }}</td>
+            <td>{{ "%.2f"|format(r.revenue|float) }}</td>
+            <td>{{ "%.2f"|format(r.profit|float) if r.profit else '-' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

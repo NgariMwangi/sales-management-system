@@ -1,0 +1,33 @@
+# Git and IDE
+.git
+.gitignore
+.cursor
+.vscode
+*.md
+
+# Python
+env
+venv
+.venv
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.egg-info
+.eggs
+
+# Environment and secrets (use compose env instead)
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Misc
+*.log
+.DS_Store

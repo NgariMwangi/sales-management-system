@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ title }}</h1>
+</div>
+<div class="card">
+    <div class="card-body">
+<form method="post">
+    {{ form.hidden_tag() }}
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            {{ form.name.label(class="form-label") }}
+            {{ form.name(class="form-control") }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="col-md-6 mb-3">
+            {{ form.sku.label(class="form-label") }}
+            {{ form.sku(class="form-control") }}
+        </div>
+        <div class="col-md-6 mb-3">
+            {{ form.category_id.label(class="form-label") }}
+            {{ form.category_id(class="form-select") }}
+        </div>
+        <div class="col-md-3 mb-3">
+            {{ form.buying_price.label(class="form-label") }}
+            {{ form.buying_price(class="form-control") }}
+            {% if form.buying_price.errors %}<div class="text-danger small">{{ form.buying_price.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="col-md-3 mb-3">
+            {{ form.selling_price.label(class="form-label") }}
+            {{ form.selling_price(class="form-control") }}
+            {% if form.selling_price.errors %}<div class="text-danger small">{{ form.selling_price.errors[0] }}</div>{% endif %}
+        </div>
+        <div class="col-md-3 mb-3">
+            {{ form.stock_quantity.label(class="form-label") }}
+            {{ form.stock_quantity(class="form-control") }}
+        </div>
+        <div class="col-md-3 mb-3">
+            {{ form.min_stock_level.label(class="form-label") }}
+            {{ form.min_stock_level(class="form-control") }}
+        </div>
+        <div class="col-12 mb-3">
+            {{ form.description.label(class="form-label") }}
+            {{ form.description(class="form-control", rows=3) }}
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ url_for('products.list') }}" class="btn btn-secondary">Cancel</a>
+</form>
+    </div>
+</div>
+{% endblock %}
