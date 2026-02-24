@@ -5,10 +5,10 @@ from wtforms.validators import DataRequired, Email, Length, Optional, EqualTo
 
 
 class UserForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(1, 80)])
-    email = StringField('Email', validators=[DataRequired(), Email()])
+    username = StringField('Username *', validators=[DataRequired(), Length(1, 80)])
+    email = StringField('Email *', validators=[DataRequired(), Email()])
     full_name = StringField('Full Name', validators=[Optional(), Length(0, 120)])
-    role = SelectField('Role', choices=[
+    role = SelectField('Role *', choices=[
         ('admin', 'Admin'),
         ('manager', 'Manager'),
         ('sales', 'Sales'),

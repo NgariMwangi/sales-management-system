@@ -5,7 +5,7 @@ from wtforms.validators import Optional, DataRequired
 
 
 class ReportFilterForm(FlaskForm):
-    report_type = SelectField('Report Type', choices=[
+    report_type = SelectField('Report Type *', choices=[
         ('sales', 'Sales Report'),
         ('product_performance', 'Product Performance'),
         ('delivery_performance', 'Delivery Performance'),

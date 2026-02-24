@@ -5,22 +5,22 @@ from wtforms.validators import DataRequired, Optional
 
 
 class DeliveryItemForm(FlaskForm):
-    product_name = StringField('Product Name', validators=[DataRequired()])
-    quantity = StringField('Quantity', validators=[DataRequired()])
+    product_name = StringField('Product Name *', validators=[DataRequired()])
+    quantity = StringField('Quantity *', validators=[DataRequired()])
     unit_price = StringField('Unit Price', validators=[Optional()], default='0')
 
 
 class DeliveryForm(FlaskForm):
-    delivery_type = SelectField('Delivery Type', choices=[
+    delivery_type = SelectField('Delivery Type *', choices=[
         ('order', 'From Order'),
         ('standalone', 'Standalone'),
     ], validators=[DataRequired()])
     order_id = StringField('Order', validators=[Optional()])
-    customer_name = StringField('Customer Name', validators=[DataRequired()])
+    customer_name = StringField('Customer Name *', validators=[DataRequired()])
     phone = StringField('Phone', validators=[Optional()])
-    delivery_address = TextAreaField('Delivery Address', validators=[DataRequired()])
+    delivery_address = TextAreaField('Delivery Address *', validators=[DataRequired()])
     scheduled_date = DateField('Scheduled Date', validators=[Optional()], format='%Y-%m-%d')
-    status = SelectField('Status', choices=[
+    status = SelectField('Status *', choices=[
         ('pending', 'Pending'),
         ('assigned', 'Assigned'),
         ('in_transit', 'In Transit'),

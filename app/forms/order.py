@@ -6,19 +6,19 @@ from wtforms import FieldList, FormField
 
 
 class OrderItemForm(FlaskForm):
-    item_type = SelectField('Type', choices=[
+    item_type = SelectField('Type *', choices=[
         ('existing_product', 'From Catalog'),
         ('manual_entry', 'Manual Entry'),
     ], validators=[DataRequired()])
     product_id = StringField('Product ID', validators=[Optional()])
-    product_name = StringField('Product Name', validators=[DataRequired()])
-    quantity = StringField('Quantity', validators=[DataRequired()])
-    selling_price = StringField('Price', validators=[DataRequired()])
+    product_name = StringField('Product Name *', validators=[DataRequired()])
+    quantity = StringField('Quantity *', validators=[DataRequired()])
+    selling_price = StringField('Price *', validators=[DataRequired()])
     subtotal = StringField('Subtotal', validators=[Optional()])
 
 
 class OrderForm(FlaskForm):
-    customer_name = StringField('Customer Name', validators=[DataRequired()])
+    customer_name = StringField('Customer Name *', validators=[DataRequired()])
     phone = StringField('Phone', validators=[Optional()])
     email = StringField('Email', validators=[Optional(), Email()])
     discount = DecimalField('Discount', places=2, default=0, validators=[Optional(), NumberRange(min=0)])
@@ -30,13 +30,13 @@ class OrderForm(FlaskForm):
         ('bank', 'Bank Transfer'),
         ('other', 'Other'),
     ], validators=[Optional()])
-    payment_status = SelectField('Payment Status', choices=[
+    payment_status = SelectField('Payment Status *', choices=[
         ('pending', 'Pending'),
         ('paid', 'Paid'),
         ('partial', 'Partial'),
         ('cancelled', 'Cancelled'),
     ], default='pending', validators=[DataRequired()])
-    order_status = SelectField('Order Status', choices=[
+    order_status = SelectField('Order Status *', choices=[
         ('pending', 'Pending'),
         ('processing', 'Processing'),
         ('completed', 'Completed'),
