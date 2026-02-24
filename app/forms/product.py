@@ -6,7 +6,7 @@ from wtforms.validators import DataRequired, Optional, NumberRange
 
 class ProductForm(FlaskForm):
     name = StringField('Product Name', validators=[DataRequired()])
-    sku = StringField('SKU', validators=[Optional()])
+    sku = StringField('Product Code', validators=[Optional()])
     category_id = SelectField('Category', validators=[Optional()], choices=[], coerce=lambda x: x if x else None)
     buying_price = DecimalField('Buying Price', places=2, validators=[Optional(), NumberRange(min=0)])
     selling_price = DecimalField('Selling Price', places=2, validators=[Optional(), NumberRange(min=0)])
