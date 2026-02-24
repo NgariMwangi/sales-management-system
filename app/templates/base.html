@@ -56,11 +56,13 @@
             <div class="content-inner">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
+                <div id="flash-messages">
                 {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">{{ message }}
+                <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert" data-auto-dismiss>{{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 {% endfor %}
+                </div>
                 {% endif %}
                 {% endwith %}
                 {% block content %}{% endblock %}
@@ -85,6 +87,19 @@
     {% block auth_content %}{% endblock %}
     {% endif %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function() {
+        var alerts = document.querySelectorAll('#flash-messages [data-auto-dismiss]');
+        if (alerts.length && typeof bootstrap !== 'undefined') {
+            setTimeout(function() {
+                alerts.forEach(function(el) {
+                    var a = bootstrap.Alert.getOrCreateInstance(el);
+                    if (a) a.close();
+                });
+            }, 5000);
+        }
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sales Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 <body class="bg-light d-flex align-items-center min-vh-100">
     <div class="container">
@@ -22,7 +23,12 @@
                             </div>
                             <div class="mb-3">
                                 {{ form.password.label(class="form-label") }}
-                                {{ form.password(class="form-control") }}
+                                <div class="input-group">
+                                    {{ form.password(class="form-control", id="login-password") }}
+                                    <button type="button" class="btn btn-outline-secondary" id="toggle-password" aria-label="Show password" title="Show password">
+                                        <i class="bi bi-eye" id="toggle-password-icon"></i>
+                                    </button>
+                                </div>
                                 {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors[0] }}</div>{% endif %}
                             </div>
                             <div class="mb-3 form-check">
@@ -39,5 +45,29 @@
             </div>
         </div>
     </div>
+    <script>
+    (function() {
+        var input = document.getElementById('login-password');
+        var btn = document.getElementById('toggle-password');
+        var icon = document.getElementById('toggle-password-icon');
+        if (input && btn && icon) {
+            btn.addEventListener('click', function() {
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                    btn.setAttribute('aria-label', 'Hide password');
+                    btn.setAttribute('title', 'Hide password');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                    btn.setAttribute('aria-label', 'Show password');
+                    btn.setAttribute('title', 'Show password');
+                }
+            });
+        }
+    })();
+    </script>
 </body>
 </html>
