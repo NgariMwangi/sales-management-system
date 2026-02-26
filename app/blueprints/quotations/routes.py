@@ -9,14 +9,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import BaseDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame, Flowable
 import json
 
 from app import db
 from app.blueprints.quotations import quotations_bp
 from app.decorators import role_required
 from app.forms import QuotationForm
-from app.models import Quotation
+from app.models import Quotation, Setting
 from app.services import QuotationService
 
 
@@ -83,164 +83,261 @@ def detail(quotation_id):
     return render_template('quotations/detail.html', quotation=quotation)
 
 
+class _LineFlowable(Flowable):
+    """Draws a horizontal line at full width; no table so it aligns with frame left edge."""
+    def __init__(self, width_pt, height_pt=2):
+        self.width_pt = width_pt
+        self.height_pt = height_pt
+
+    def wrap(self, aW, aH):
+        return (self.width_pt, self.height_pt)
+
+    def drawOn(self, canv, x, y, _sW=0):
+        canv.setStrokeColor(colors.HexColor('#cccccc'))
+        canv.setLineWidth(0.5)
+        # draw at bottom of flowable box so it sits under the content above
+        canv.line(x, y - self.height_pt, x + self.width_pt, y - self.height_pt)
+
+
+def _hline(width_pt=512):
+    """Thin horizontal line (grey). Use _LineFlowable for header block so it aligns; Table elsewhere."""
+    t = Table([['']], colWidths=[width_pt], rowHeights=[2])
+    t.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    return t
+
+
 def _build_quotation_pdf(quotation):
-    """Build a professional quotation PDF; returns bytes."""
+    """Build quotation PDF in clean document format (logo, company header, customer, table, terms, acceptance)."""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=letter,
-        rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54,
+    margin = 50
+    pw_pt, ph_pt = letter[0], letter[1]
+    frame_width = pw_pt - 2 * margin
+    frame_height = ph_pt - 2 * margin
+    frame = Frame(
+        margin, margin, frame_width, frame_height,
+        id='normal',
+        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
     )
+    doc = BaseDocTemplate(
+        buffer, pagesize=letter,
+        leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
+    )
+    doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
     styles = getSampleStyleSheet()
-    # Professional color palette
-    navy = colors.HexColor('#1e3a5f')
-    slate = colors.HexColor('#334155')
-    slate_light = colors.HexColor('#64748b')
-    border_light = colors.HexColor('#e2e8f0')
-    bg_row = colors.HexColor('#f8fafc')
-    accent = colors.HexColor('#0f766e')  # teal accent for grand total
+    black = colors.black
+    grey = colors.HexColor('#555555')
+    grey_light = colors.HexColor('#888888')
+
+    company_name = Setting.get('company_name', '') or 'Company Name'
+    company_phone = Setting.get('company_phone', '') or ''
+    company_address = Setting.get('company_address', '') or ''
+    contact_parts = []
+    if company_phone:
+        contact_parts.append('Tel: {}'.format(company_phone))
+    if company_address:
+        contact_parts.append(company_address.strip().replace('\n', ', '))
+    contact_line = ' | '.join(contact_parts) if contact_parts else ''
 
     title_style = ParagraphStyle(
-        'QuotationTitle', parent=styles['Heading1'],
-        fontSize=22, spaceAfter=4, textColor=navy, fontName='Helvetica-Bold',
+        'DocTitle', parent=styles['Heading1'],
+        fontSize=18, spaceAfter=2, textColor=black, fontName='Helvetica-Bold', leftIndent=0, firstLineIndent=0,
     )
-    meta_style = ParagraphStyle(
-        'QuotationMeta', parent=styles['Normal'],
-        fontSize=9, textColor=slate_light, spaceAfter=0,
-    )
-    section_style = ParagraphStyle(
-        'SectionHead', parent=styles['Normal'],
-        fontSize=9, textColor=slate, spaceAfter=4, fontName='Helvetica-Bold',
+    small_style = ParagraphStyle(
+        'Small', parent=styles['Normal'], fontSize=9, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
+        rightIndent=0, bulletIndent=0,
     )
     body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'], fontSize=10, textColor=slate, spaceAfter=2,
+        'Body', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
     )
-    footer_style = ParagraphStyle(
-        'Footer', parent=styles['Normal'], fontSize=8, textColor=slate_light,
-        alignment=1, spaceBefore=24, spaceAfter=0,
+    terms_style = ParagraphStyle(
+        'Terms', parent=styles['Normal'], fontSize=9, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
     )
     story = []
 
-    # ----- Header: logo + title block -----
-    logo_path = os.path.join(current_app.static_folder, 'logo.jpg')
-    if os.path.isfile(logo_path):
+    # ----- Header: use header image (logo + name + contact) if present, else logo + company text -----
+    static_dir = current_app.static_folder
+    header_path = None
+    for name in ('header.jpg', 'header.png', 'header.jpeg'):
+        p = os.path.join(static_dir, name)
+        if os.path.isfile(p):
+            header_path = p
+            break
+    if header_path:
         try:
-            ir = ImageReader(logo_path)
+            ir = ImageReader(header_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = 1.75 * inch
-                max_h_pt = 1.25 * inch
+                max_w_pt = 6.0 * inch
+                max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                img = Image(logo_path, width=pw * scale, height=ph * scale)
+                header_img = Image(header_path, width=pw * scale, height=ph * scale)
             else:
-                img = Image(logo_path, width=1.75 * inch, height=1.25 * inch)
-            story.append(img)
-            story.append(Spacer(1, 0.15 * inch))
+                header_img = Image(header_path, width=6.0 * inch, height=1.4 * inch)
+            header_img.hAlign = 'LEFT'
+            # Same treatment as header: image then spacer then line as separate flowables (line uses custom draw so it starts at frame left)
+            story.append(header_img)
+            story.append(Spacer(1, 0.2 * inch))
+            story.append(_LineFlowable(frame_width))
         except Exception:
-            pass
+            header_path = None
+    if not header_path:
+        logo_path = os.path.join(static_dir, 'logo.jpg')
+        logo_cell = Spacer(1, 1)
+        if os.path.isfile(logo_path):
+            try:
+                ir = ImageReader(logo_path)
+                pw, ph = ir.getSize()
+                if pw and ph:
+                    max_w_pt = 1.4 * inch
+                    max_h_pt = 1.0 * inch
+                    scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
+                    logo_cell = Image(logo_path, width=pw * scale, height=ph * scale)
+                else:
+                    logo_cell = Image(logo_path, width=1.4 * inch, height=1.0 * inch)
+            except Exception:
+                pass
+        right_content = [
+            Paragraph('<b>{}</b>'.format(company_name.replace('<', '&lt;')), ParagraphStyle('Company', parent=styles['Normal'], fontSize=14, textColor=black, spaceAfter=2, fontName='Helvetica-Bold')),
+            Paragraph(contact_line or ' ', small_style),
+        ]
+        header_table = Table([[logo_cell, right_content]], colWidths=[1.5 * inch, 4.5 * inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),
+            ('VALIGN', (1, 0), (1, 0), 'TOP'),
+            ('LEFTPADDING', (0, 0), (0, 0), 0),
+            ('LEFTPADDING', (1, 0), (1, 0), 12),
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 0.2 * inch))
+        story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.15 * inch))
 
+    # ----- QUOTATION title -----
     story.append(Paragraph('QUOTATION', title_style))
-    created = quotation.created_at.strftime('%d %b %Y') if quotation.created_at else '—'
-    valid = quotation.valid_until.strftime('%d %b %Y') if quotation.valid_until else '—'
-    story.append(Paragraph(
-        f'Quotation No. <b>{quotation.quotation_number}</b> &nbsp;·&nbsp; '
-        f'Date {created} &nbsp;·&nbsp; Valid until {valid}',
-        meta_style,
-    ))
-    story.append(Spacer(1, 0.35 * inch))
+    story.append(_hline())
+    story.append(Spacer(1, 0.12 * inch))
 
-    # ----- Bill To (customer card) -----
-    story.append(Paragraph('BILL TO', section_style))
+    # ----- Quotation No (left) Date (right) -----
+    created = quotation.created_at.strftime('%d/%m/%Y') if quotation.created_at else '—'
+    # Full frame width (like header _hline) so table starts at document left margin
+    ref_table = Table([
+        [Paragraph('Quotation No: <b>{}</b>'.format(quotation.quotation_number), small_style),
+         Paragraph('Date: <b>{}</b>'.format(created), ParagraphStyle('SmallRight', parent=small_style, alignment=2))]
+    ], colWidths=[frame_width - 2.5 * inch, 2.5 * inch])
+    ref_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('LEFTPADDING', (0, 0), (0, 0), 0),
+        ('RIGHTPADDING', (0, 0), (0, 0), 0),
+    ]))
+    story.append(ref_table)
+    story.append(Spacer(1, 0.25 * inch))
+
+    # ----- Customer -----
+    story.append(Paragraph('Customer:', body_style))
     story.append(Paragraph(quotation.customer_name or '—', body_style))
-    if quotation.phone or quotation.email:
-        parts = []
-        if quotation.phone:
-            parts.append(quotation.phone)
-        if quotation.email:
-            parts.append(quotation.email)
-        story.append(Paragraph(' · '.join(parts), meta_style))
-    story.append(Spacer(1, 0.4 * inch))
+    if quotation.phone:
+        story.append(Paragraph('Tel: {}'.format(quotation.phone), small_style))
+    story.append(Spacer(1, 0.15 * inch))
+    story.append(_hline())
+    story.append(Spacer(1, 0.2 * inch))
 
-    # ----- Items table -----
-    data = [['Product / Description', 'Qty', 'Unit Price', 'Disc %', 'Subtotal']]
+    # ----- Items table: Item/Description | Qty | Unit Price | Amount (full frame width like header) -----
+    data = [['Item / Description', 'Qty', 'Unit Price', 'Amount']]
     for qi in quotation.items:
         data.append([
             qi.product_name or '—',
             str(qi.quantity),
             '%.2f' % float(qi.unit_price),
-            '%.2f' % float(qi.discount_percent or 0),
             '%.2f' % float(qi.subtotal),
         ])
-    col_widths = [3.5 * inch, 0.6 * inch, 1.15 * inch, 0.7 * inch, 1.15 * inch]
+    col_widths = [frame_width - 2.9 * inch, 0.6 * inch, 1.1 * inch, 1.2 * inch]
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), navy),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('TOPPADDING', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-        ('LEFTPADDING', (0, 0), (0, 0), 12),
-        ('RIGHTPADDING', (-1, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('TEXTCOLOR', (0, 1), (-1, -1), slate),
+        ('LEFTPADDING', (0, 0), (0, -1), 0),
+        ('RIGHTPADDING', (0, 0), (0, -1), 6),
+        ('LEFTPADDING', (1, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (1, 0), (-1, -1), 0),
         ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
-        ('LEFTPADDING', (0, 1), (0, -1), 12),
-        ('RIGHTPADDING', (0, 1), (-1, -1), 12),
-        ('LINEBELOW', (0, 0), (-1, 0), 0, colors.white),
-        ('BOX', (0, 0), (-1, -1), 0.5, border_light),
-        ('INNERGRID', (0, 0), (-1, -1), 0.25, border_light),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, bg_row]),
+        ('TOPPADDING', (0, 1), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
     ]))
     story.append(t)
-    story.append(Spacer(1, 0.3 * inch))
+    story.append(Spacer(1, 0.08 * inch))
+    story.append(_hline())
 
-    # ----- Totals (right-aligned block) -----
     total = float(quotation.total_amount or 0)
-    discount = float(quotation.discount or 0)
-    tax = float(quotation.tax or 0)
     grand = float(quotation.grand_total or 0)
-    totals_data = [['Subtotal', '%.2f' % total]]
-    if discount != 0:
-        totals_data.append(['Discount', '%.2f' % discount])
-    if tax != 0:
-        totals_data.append(['Tax', '%.2f' % tax])
-    totals_data.append(['Grand Total', '%.2f' % grand])
-    tot = Table(totals_data, colWidths=[1.6 * inch, 1.35 * inch])
-    tot.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-        ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -2), 10),
-        ('FONTSIZE', (0, -1), (-1, -1), 12),
-        ('TEXTCOLOR', (0, 0), (-1, -2), slate),
-        ('TEXTCOLOR', (0, -1), (-1, -1), navy),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f0fdfa')),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LINEABOVE', (0, -1), (-1, -1), 1.5, accent),
-        ('BOX', (0, 0), (-1, -1), 0.5, border_light),
-        ('INNERGRID', (0, 0), (-1, -1), 0.25, border_light),
+    # Subtotal starts where Unit Price starts; Total Quoted Amount starts where Qty starts
+    _desc_w = frame_width - 2.9 * inch  # same as items table col0
+    _qty_w = 0.6 * inch
+    _unit_w = 1.1 * inch
+    _amt_w = 1.2 * inch
+    subtotal_row = Table([['', 'Subtotal', '%.2f' % total]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
+    subtotal_row.setStyle(TableStyle([
+        ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
-    story.append(tot)
+    story.append(subtotal_row)
+    total_row = Table([['', 'Total Quoted Amount', '%.2f' % grand]], colWidths=[_desc_w, _qty_w + _unit_w, _amt_w])
+    total_row.setStyle(TableStyle([
+        ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
+    ]))
+    story.append(total_row)
+    story.append(Spacer(1, 0.35 * inch))
 
-    if quotation.notes:
-        story.append(Spacer(1, 0.35 * inch))
-        story.append(Paragraph('NOTES', section_style))
-        notes_para = Paragraph(quotation.notes.replace('\n', '<br/>'), body_style)
-        story.append(notes_para)
+    # ----- Terms & Conditions -----
+    story.append(Paragraph('<b>Terms &amp; Conditions:</b>', terms_style))
+    terms_list = [
+        'Prices are valid for 7 days from the date above.',
+        'Subject to availability and usual terms of trade.',
+        'Delivery charges may apply.',
+        'Payment is required upon delivery.',
+    ]
+    for term in terms_list:
+        story.append(Paragraph('• ' + term, terms_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline())
+    story.append(Spacer(1, 0.25 * inch))
 
-    # ----- Footer -----
-    story.append(Spacer(1, 0.4 * inch))
-    story.append(Paragraph(
-        'Thank you for your business. If you have any questions, please contact us.',
-        footer_style,
-    ))
+    # ----- Accepted by: Name, Signature, Date -----
+    story.append(Paragraph('Accepted by:', body_style))
+    story.append(Spacer(1, 0.12 * inch))
+    name_sig_data = [['Name:', '_________________________', 'Signature:', '_________________________']]
+    name_sig_table = Table(
+        name_sig_data,
+        colWidths=[0.5 * inch, 2.2 * inch, 0.9 * inch, frame_width - 3.6 * inch],
+    )
+    name_sig_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ('LEFTPADDING', (0, 0), (0, -1), 0),
+    ]))
+    story.append(name_sig_table)
+    story.append(Spacer(1, 0.15 * inch))
+    date_data = [['Date:', '_________________________']]
+    date_table = Table(date_data, colWidths=[0.5 * inch, frame_width - 0.5 * inch])
+    date_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (0, -1), 0),
+    ]))
+    story.append(date_table)
 
     doc.build(story)
     buffer.seek(0)

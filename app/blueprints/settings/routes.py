@@ -13,12 +13,14 @@ from app.models import Setting, AuditLog
 @settings_required
 def index():
     company_name = Setting.get('company_name', '')
+    company_phone = Setting.get('company_phone', '')
     company_address = Setting.get('company_address', '')
     tax_rate = Setting.get('tax_rate', '0')
     currency = Setting.get('currency', 'KSH')
     return render_template(
         'settings/index.html',
         company_name=company_name,
+        company_phone=company_phone,
         company_address=company_address,
         tax_rate=tax_rate,
         currency=currency,
@@ -30,6 +32,7 @@ def index():
 @settings_required
 def save():
     Setting.set('company_name', request.form.get('company_name'), 'company')
+    Setting.set('company_phone', request.form.get('company_phone'), 'company')
     Setting.set('company_address', request.form.get('company_address'), 'company')
     Setting.set('tax_rate', request.form.get('tax_rate'), 'general')
     Setting.set('currency', request.form.get('currency'), 'general')
