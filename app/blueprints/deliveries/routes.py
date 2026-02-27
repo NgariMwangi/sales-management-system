@@ -296,7 +296,7 @@ def _build_delivery_report_pdf(delivery):
     _nc = [0.5 * inch, 2.2 * inch, 0.9 * inch, frame_width - 3.6 * inch]
     received_table = Table([
         ['Name:', '_________________________', 'Signature:', '_________________________'],
-        ['Date:', '_________________________', 'Date:', '_________________________'],
+        ['Date:', '_________________________', '', ''],
     ], colWidths=_nc)
     received_table.setStyle(TableStyle([
         ('FONTSIZE', (0, 0), (-1, -1), 10),
