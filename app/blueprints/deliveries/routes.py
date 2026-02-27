@@ -10,14 +10,42 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import (
+    BaseDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageTemplate, Frame, Flowable,
+)
 
 from app import db
 from app.blueprints.deliveries import deliveries_bp
 from app.decorators import role_required
 from app.forms import DeliveryForm
-from app.models import Delivery, Order, User
+from app.models import Delivery, Order, User, Setting
 from app.services import DeliveryService
+
+
+class _LineFlowable(Flowable):
+    """Draws a horizontal line at full width; aligns with frame left edge."""
+    def __init__(self, width_pt, height_pt=2):
+        self.width_pt = width_pt
+        self.height_pt = height_pt
+
+    def wrap(self, aW, aH):
+        return (self.width_pt, self.height_pt)
+
+    def drawOn(self, canv, x, y, _sW=0):
+        canv.setStrokeColor(colors.HexColor('#cccccc'))
+        canv.setLineWidth(0.5)
+        canv.line(x, y - self.height_pt, x + self.width_pt, y - self.height_pt)
+
+
+def _hline(width_pt):
+    """Thin horizontal line (grey), full frame width."""
+    t = Table([['']], colWidths=[width_pt], rowHeights=[2])
+    t.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    return t
 
 
 @deliveries_bp.route('/')
@@ -99,148 +127,198 @@ def detail(delivery_id):
 
 
 def _build_delivery_report_pdf(delivery):
-    """Build a professional delivery report PDF; returns bytes."""
+    """Build delivery note PDF with same header as quotation; layout matches delivery note template."""
     buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=letter,
-        rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54,
+    margin = 50
+    pw_pt, ph_pt = letter[0], letter[1]
+    frame_width = pw_pt - 2 * margin
+    frame_height = ph_pt - 2 * margin
+    frame = Frame(
+        margin, margin, frame_width, frame_height,
+        id='normal',
+        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
     )
+    doc = BaseDocTemplate(
+        buffer, pagesize=letter,
+        leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
+    )
+    doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
     styles = getSampleStyleSheet()
-    navy = colors.HexColor('#1e3a5f')
-    slate = colors.HexColor('#334155')
-    slate_light = colors.HexColor('#64748b')
+    black = colors.black
+    grey = colors.HexColor('#555555')
     border_light = colors.HexColor('#e2e8f0')
-    bg_row = colors.HexColor('#f8fafc')
-    accent = colors.HexColor('#0f766e')
+
+    company_name = Setting.get('company_name', '') or 'Company Name'
+    company_phone = Setting.get('company_phone', '') or ''
+    company_address = Setting.get('company_address', '') or ''
+    contact_parts = []
+    if company_phone:
+        contact_parts.append('Tel: {}'.format(company_phone))
+    if company_address:
+        contact_parts.append(company_address.strip().replace('\n', ', '))
+    contact_line = ' | '.join(contact_parts) if contact_parts else ''
 
     title_style = ParagraphStyle(
-        'Title', parent=styles['Heading1'],
-        fontSize=22, spaceAfter=4, textColor=navy, fontName='Helvetica-Bold',
+        'DocTitle', parent=styles['Heading1'],
+        fontSize=18, spaceAfter=2, textColor=black, fontName='Helvetica-Bold',
+        leftIndent=0, firstLineIndent=0,
     )
-    meta_style = ParagraphStyle(
-        'Meta', parent=styles['Normal'], fontSize=9, textColor=slate_light, spaceAfter=0,
-    )
-    section_style = ParagraphStyle(
-        'SectionHead', parent=styles['Normal'],
-        fontSize=9, textColor=slate, spaceAfter=4, fontName='Helvetica-Bold',
+    small_style = ParagraphStyle(
+        'Small', parent=styles['Normal'], fontSize=9, textColor=grey, spaceAfter=0,
+        leftIndent=0, firstLineIndent=0, rightIndent=0, bulletIndent=0,
     )
     body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'], fontSize=10, textColor=slate, spaceAfter=2,
-    )
-    footer_style = ParagraphStyle(
-        'Footer', parent=styles['Normal'], fontSize=8, textColor=slate_light,
-        alignment=1, spaceBefore=24, spaceAfter=0,
+        'Body', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2,
+        leftIndent=0, firstLineIndent=0,
     )
     story = []
 
-    logo_path = os.path.join(current_app.static_folder, 'logo.jpg')
-    if os.path.isfile(logo_path):
+    # ----- Header: same as quotation (header image or logo + company) -----
+    static_dir = current_app.static_folder
+    header_path = None
+    for name in ('header.jpg', 'header.png', 'header.jpeg'):
+        p = os.path.join(static_dir, name)
+        if os.path.isfile(p):
+            header_path = p
+            break
+    if header_path:
         try:
-            ir = ImageReader(logo_path)
+            ir = ImageReader(header_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = 1.75 * inch
-                max_h_pt = 1.25 * inch
+                max_w_pt = 6.0 * inch
+                max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                img = Image(logo_path, width=pw * scale, height=ph * scale)
+                header_img = Image(header_path, width=pw * scale, height=ph * scale)
             else:
-                img = Image(logo_path, width=1.75 * inch, height=1.25 * inch)
-            story.append(img)
-            story.append(Spacer(1, 0.15 * inch))
+                header_img = Image(header_path, width=6.0 * inch, height=1.4 * inch)
+            header_img.hAlign = 'LEFT'
+            story.append(header_img)
+            story.append(Spacer(1, 0.2 * inch))
+            story.append(_LineFlowable(frame_width))
         except Exception:
-            pass
+            header_path = None
+    if not header_path:
+        logo_path = os.path.join(static_dir, 'logo.jpg')
+        logo_cell = Spacer(1, 1)
+        if os.path.isfile(logo_path):
+            try:
+                ir = ImageReader(logo_path)
+                pw, ph = ir.getSize()
+                if pw and ph:
+                    max_w_pt = 1.4 * inch
+                    max_h_pt = 1.0 * inch
+                    scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
+                    logo_cell = Image(logo_path, width=pw * scale, height=ph * scale)
+                else:
+                    logo_cell = Image(logo_path, width=1.4 * inch, height=1.0 * inch)
+            except Exception:
+                pass
+        right_content = [
+            Paragraph('<b>{}</b>'.format(company_name.replace('<', '&lt;')), ParagraphStyle('Company', parent=styles['Normal'], fontSize=14, textColor=black, spaceAfter=2, fontName='Helvetica-Bold')),
+            Paragraph(contact_line or ' ', small_style),
+        ]
+        header_table = Table([[logo_cell, right_content]], colWidths=[1.5 * inch, 4.5 * inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),
+            ('VALIGN', (1, 0), (1, 0), 'TOP'),
+            ('LEFTPADDING', (0, 0), (0, 0), 0),
+            ('LEFTPADDING', (1, 0), (1, 0), 12),
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 0.2 * inch))
+        story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.15 * inch))
 
-    story.append(Paragraph('DELIVERY REPORT', title_style))
-    scheduled = delivery.scheduled_date.strftime('%d %b %Y') if delivery.scheduled_date else '—'
-    delivered = delivery.delivery_date.strftime('%d %b %Y %H:%M') if delivery.delivery_date else '—'
-    story.append(Paragraph(
-        f'Delivery No. <b>{delivery.delivery_number}</b> &nbsp;·&nbsp; '
-        f'Scheduled: {scheduled} &nbsp;·&nbsp; Status: {delivery.status}',
-        meta_style,
-    ))
-    if delivery.order_id:
-        story.append(Paragraph(f'Order: {delivery.order.order_number}', meta_style))
-    story.append(Spacer(1, 0.35 * inch))
+    # ----- DELIVERY NOTE (left) -----
+    story.append(Paragraph('DELIVERY NOTE', title_style))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.12 * inch))
 
-    story.append(Paragraph('DELIVERY TO', section_style))
+    # ----- Delivery Note No (left) Date (right) -----
+    date_str = delivery.scheduled_date.strftime('%d/%m/%Y') if delivery.scheduled_date else (delivery.created_at.strftime('%d/%m/%Y') if delivery.created_at else '—')
+    ref_table = Table([
+        [Paragraph('Delivery Note No: <b>{}</b>'.format(delivery.delivery_number), small_style),
+         Paragraph('Date: <b>{}</b>'.format(date_str), ParagraphStyle('SmallRight', parent=small_style, alignment=2))]
+    ], colWidths=[frame_width - 2.5 * inch, 2.5 * inch])
+    ref_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('LEFTPADDING', (0, 0), (0, 0), 0),
+        ('RIGHTPADDING', (0, 0), (0, 0), 0),
+    ]))
+    story.append(ref_table)
+    story.append(Spacer(1, 0.25 * inch))
+
+    # ----- Customer -----
+    story.append(Paragraph('Customer:', body_style))
     story.append(Paragraph(delivery.customer_name or '—', body_style))
     if delivery.phone:
-        story.append(Paragraph(f'Phone: {delivery.phone}', meta_style))
-    story.append(Paragraph('<b>Address:</b><br/>' + (delivery.delivery_address or '—').replace('\n', '<br/>'), body_style))
-    assigned = '—'
-    if getattr(delivery, 'assigned_to_user', None) and delivery.assigned_to_user:
-        u = delivery.assigned_to_user
-        assigned = u.full_name or u.username or '—'
-    story.append(Paragraph(f'<b>Assigned to:</b> {assigned}', meta_style))
-    story.append(Spacer(1, 0.35 * inch))
+        story.append(Paragraph('Tel: {}'.format(delivery.phone), small_style))
+    story.append(Spacer(1, 0.15 * inch))
 
-    data = [['Product / Description', 'Qty', 'Unit Price']]
+    # ----- Delivery Address -----
+    story.append(Paragraph('Delivery Address:', body_style))
+    story.append(Paragraph((delivery.delivery_address or '—').replace('\n', '<br/>'), body_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.2 * inch))
+
+    # ----- Items table: Item/Description | Qty Delivered | Remarks -----
+    data = [['Item / Description', 'Qty Delivered', 'Remarks']]
     for di in delivery.items:
-        data.append([
-            di.product_name or '—',
-            str(di.quantity),
-            '%.2f' % float(di.unit_price),
-        ])
-    col_widths = [4.2 * inch, 0.8 * inch, 1.4 * inch]
+        data.append([di.product_name or '—', str(di.quantity), ''])
+    col_widths = [frame_width - 1.8 * inch, 0.9 * inch, 0.9 * inch]
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), navy),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('TOPPADDING', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-        ('LEFTPADDING', (0, 0), (0, 0), 12),
-        ('RIGHTPADDING', (-1, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('TEXTCOLOR', (0, 1), (-1, -1), slate),
+        ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ('LEFTPADDING', (0, 0), (0, -1), 0),
+        ('LEFTPADDING', (1, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
-        ('LEFTPADDING', (0, 1), (0, -1), 12),
-        ('RIGHTPADDING', (0, 1), (-1, -1), 12),
-        ('LINEBELOW', (0, 0), (-1, 0), 0, colors.white),
+        ('TOPPADDING', (0, 1), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
         ('BOX', (0, 0), (-1, -1), 0.5, border_light),
         ('INNERGRID', (0, 0), (-1, -1), 0.25, border_light),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, bg_row]),
     ]))
     story.append(t)
+    story.append(Spacer(1, 0.25 * inch))
 
-    if delivery.delivery_notes:
-        story.append(Spacer(1, 0.3 * inch))
-        story.append(Paragraph('NOTES', section_style))
-        story.append(Paragraph(delivery.delivery_notes.replace('\n', '<br/>'), body_style))
-
-    story.append(Spacer(1, 0.5 * inch))
-    story.append(Paragraph('RECEIVED BY (Customer signature)', section_style))
-    story.append(Spacer(1, 0.15 * inch))
-    sig_line = Table([['']], colWidths=[3.5 * inch], rowHeights=[0.45 * inch])
-    sig_line.setStyle(TableStyle([
-        ('LINEBELOW', (0, 0), (-1, -1), 0.5, slate),
-        ('BOX', (0, 0), (-1, -1), 0, colors.white),
-    ]))
-    story.append(sig_line)
-    story.append(Spacer(1, 0.2 * inch))
-    name_date_data = [
-        ['Name:', ''],
-        ['Date:', ''],
-    ]
-    name_date_table = Table(name_date_data, colWidths=[0.6 * inch, 2.9 * inch], rowHeights=[0.28 * inch, 0.28 * inch])
-    name_date_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (0, -1), 9),
-        ('TEXTCOLOR', (0, 0), (0, -1), slate),
-        ('LINEBELOW', (1, 0), (1, 0), 0.5, slate),
-        ('LINEBELOW', (1, 1), (1, 1), 0.5, slate),
+    # ----- Received by: Name/Signature row, then Date/Date row (left and right) -----
+    story.append(Paragraph('Received by:', body_style))
+    story.append(Spacer(1, 0.12 * inch))
+    _nc = [0.5 * inch, 2.2 * inch, 0.9 * inch, frame_width - 3.6 * inch]
+    received_table = Table([
+        ['Name:', '_________________________', 'Signature:', '_________________________'],
+        ['Date:', '_________________________', 'Date:', '_________________________'],
+    ], colWidths=_nc)
+    received_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
-    story.append(name_date_table)
+    story.append(received_table)
+    story.append(Spacer(1, 0.25 * inch))
 
-    story.append(Spacer(1, 0.4 * inch))
-    story.append(Paragraph('Delivery report generated for records.', footer_style))
+    # ----- Goods received disclaimer (centered) -----
+    disclaimer_style = ParagraphStyle(
+        'Disclaimer', parent=styles['Normal'], fontSize=10, textColor=black, alignment=1, spaceAfter=0,
+    )
+    story.append(Paragraph('Goods received in good condition', disclaimer_style))
+    story.append(Spacer(1, 0.3 * inch))
+
+    # ----- Footer: Tel centered -----
+    footer_style = ParagraphStyle(
+        'Footer', parent=styles['Normal'], fontSize=9, textColor=grey, alignment=1, spaceAfter=0,
+    )
+    story.append(Paragraph('Tel: 0725 799182', footer_style))
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
