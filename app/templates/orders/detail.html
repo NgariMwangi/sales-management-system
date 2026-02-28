@@ -4,15 +4,14 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Order {{ order.order_number }}</h2>
     <div>
-        <a href="{{ url_for('orders.pdf', order_id=order.id) }}" class="btn btn-outline-danger me-2" download>Export PDF</a>
-        <a href="{{ url_for('orders.invoice', order_id=order.id) }}" class="btn btn-outline-primary me-2" target="_blank">Print Invoice</a>
+        <a href="{{ url_for('orders.pdf', order_id=order.id) }}" class="btn btn-outline-danger me-2" download>Export Invoice</a>
         {% if order.payment_status in ['paid', 'partial'] %}
         <div class="btn-group me-2">
             <a href="{{ url_for('orders.receipt', order_id=order.id, format='a4') }}" class="btn btn-outline-success" download>Receipt (A4)</a>
             <a href="{{ url_for('orders.receipt', order_id=order.id, format='thermal') }}" class="btn btn-outline-success" download>Receipt (Thermal)</a>
         </div>
         {% endif %}
-        {% if order.order_status != 'completed' and (current_user.role in ['admin','manager','sales']) %}
+        {% if (order.order_status != 'completed' and current_user.role in ['admin','manager','sales']) or (order.order_status == 'completed' and current_user.role in ['admin','manager']) %}
         <a href="{{ url_for('orders.edit', order_id=order.id) }}" class="btn btn-primary">Edit</a>
         {% endif %}
     </div>

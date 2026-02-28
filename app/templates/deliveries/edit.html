@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Edit Delivery {{ delivery.delivery_number }}{% endblock %}
+{% block content %}
+<h2 class="mb-4">Edit Delivery {{ delivery.delivery_number }}</h2>
+
+<form method="post" id="deliveryEditForm">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="delivery_type" value="{{ 'order' if delivery.order_id else 'standalone' }}">
+    <input type="hidden" name="order_id" value="{{ delivery.order_id or '' }}">
+    <input type="hidden" name="items_json" id="itemsJson" value="">
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Delivery items</strong>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">Add item</button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th></th></tr></thead>
+                <tbody id="itemsBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            {{ form.customer_name.label(class="form-label") }}
+            {{ form.customer_name(class="form-control") }}
+        </div>
+        <div class="col-md-6">
+            {{ form.phone.label(class="form-label") }}
+            {{ form.phone(class="form-control") }}
+        </div>
+    </div>
+    <div class="mb-3">
+        {{ form.delivery_address.label(class="form-label") }}
+        {{ form.delivery_address(class="form-control", rows=2) }}
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            {{ form.scheduled_date.label(class="form-label") }}
+            {{ form.scheduled_date(class="form-control") }}
+        </div>
+        <div class="col-md-4">
+            {{ form.assigned_to_id.label(class="form-label") }}
+            {{ form.assigned_to_id(class="form-select") }}
+        </div>
+        <div class="col-md-4">
+            {{ form.status.label(class="form-label") }}
+            {{ form.status(class="form-select") }}
+        </div>
+    </div>
+    <div class="mb-3">
+        {{ form.delivery_notes.label(class="form-label") }}
+        {{ form.delivery_notes(class="form-control", rows=2) }}
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ url_for('deliveries.detail', delivery_id=delivery.id) }}" class="btn btn-secondary">Cancel</a>
+</form>
+
+<script>
+(function(){
+    const itemsBody = document.getElementById('itemsBody');
+    const itemsJson = document.getElementById('itemsJson');
+    const form = document.getElementById('deliveryEditForm');
+    let items = {{ items_initial | tojson }};
+
+    function esc(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function render(){
+        itemsBody.innerHTML = items.map((it, idx) =>
+            '<tr><td><input type="text" class="form-control form-control-sm" data-field="product_name" value="' + esc(it.product_name) + '"></td>' +
+            '<td><input type="number" class="form-control form-control-sm" min="1" data-field="quantity" value="' + (it.quantity || 1) + '"></td>' +
+            '<td><input type="number" class="form-control form-control-sm" step="0.01" min="0" data-field="unit_price" value="' + (it.unit_price || 0) + '"></td>' +
+            '<td><button type="button" class="btn btn-sm btn-danger removeItem" data-idx="' + idx + '">Remove</button></td></tr>'
+        ).join('');
+        itemsBody.querySelectorAll('.removeItem').forEach(btn => {
+            btn.onclick = () => { items.splice(parseInt(btn.dataset.idx), 1); render(); syncJson(); };
+        });
+        itemsBody.querySelectorAll('input').forEach(inp => {
+            inp.onchange = syncJson;
+            inp.oninput = syncJson;
+        });
+        syncJson();
+    }
+
+    function syncJson(){
+        const rows = itemsBody.querySelectorAll('tr');
+        const data = [];
+        rows.forEach(tr => {
+            const product_name = (tr.querySelector('[data-field="product_name"]') || {}).value || '';
+            const quantity = parseInt((tr.querySelector('[data-field="quantity"]') || {}).value, 10) || 0;
+            const unit_price = parseFloat((tr.querySelector('[data-field="unit_price"]') || {}).value) || 0;
+            data.push({ product_name: product_name.trim(), quantity: quantity, unit_price: unit_price });
+        });
+        items = data;
+        itemsJson.value = JSON.stringify(data);
+    }
+
+    document.getElementById('addItemBtn').onclick = () => {
+        items.push({ product_name: '', quantity: 1, unit_price: 0 });
+        render();
+    };
+
+    form.onsubmit = () => {
+        syncJson();
+        return true;
+    };
+
+    render();
+})();
+</script>
+{% endblock %}

@@ -4,6 +4,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Delivery {{ delivery.delivery_number }}</h2>
     <div class="d-flex align-items-center gap-2">
+        {% if current_user.role in ['admin','manager','sales'] %}
+        <a href="{{ url_for('deliveries.edit', delivery_id=delivery.id) }}" class="btn btn-primary">Edit</a>
+        {% endif %}
         <a href="{{ url_for('deliveries.pdf', delivery_id=delivery.id) }}" class="btn btn-outline-danger" download>Export PDF</a>
         {% if current_user.role == 'delivery' and delivery.assigned_to_id == current_user.id or current_user.role in ['admin','manager','sales'] %}
         <form method="post" action="{{ url_for('deliveries.update_status', delivery_id=delivery.id) }}" class="d-inline">

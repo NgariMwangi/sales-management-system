@@ -18,7 +18,7 @@ from app import db
 from app.blueprints.deliveries import deliveries_bp
 from app.decorators import role_required
 from app.forms import DeliveryForm
-from app.models import Delivery, Order, User, Setting
+from app.models import Delivery, DeliveryItem, Order, User, Setting
 from app.services import DeliveryService
 
 
@@ -124,6 +124,51 @@ def detail(delivery_id):
         from flask import abort
         abort(403)
     return render_template('deliveries/detail.html', delivery=delivery)
+
+
+@deliveries_bp.route('/<delivery_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'manager', 'sales')
+def edit(delivery_id):
+    delivery = Delivery.query.get_or_404(delivery_id)
+    if current_user.role == 'delivery' and delivery.assigned_to_id != current_user.id:
+        from flask import abort
+        abort(403)
+    form = DeliveryForm(obj=delivery)
+    form.assigned_to_id.choices = [('', '-- Select --')] + [
+        (u.id, u.full_name or u.username) for u in User.query.filter_by(is_active=True).order_by(User.full_name).all()
+    ]
+    if form.validate_on_submit():
+        delivery.customer_name = form.customer_name.data
+        delivery.phone = form.phone.data
+        delivery.delivery_address = form.delivery_address.data
+        delivery.scheduled_date = form.scheduled_date.data
+        delivery.assigned_to_id = form.assigned_to_id.data or None
+        delivery.status = form.status.data
+        delivery.delivery_notes = form.delivery_notes.data
+        items_json = request.form.get('items_json', '[]')
+        try:
+            items_data = json.loads(items_json) if items_json else []
+        except Exception:
+            items_data = []
+        for di in delivery.items.all():
+            db.session.delete(di)
+        for row in items_data:
+            product_name = (row.get('product_name') or '').strip() or '—'
+            quantity = int(row.get('quantity', 0) or 0)
+            unit_price = float(row.get('unit_price', 0) or 0)
+            if product_name and quantity > 0:
+                db.session.add(DeliveryItem(
+                    delivery_id=delivery.id,
+                    product_name=product_name,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                ))
+        db.session.commit()
+        flash('Delivery updated.', 'success')
+        return redirect(url_for('deliveries.detail', delivery_id=delivery.id))
+    items_initial = [{'product_name': di.product_name, 'quantity': di.quantity, 'unit_price': float(di.unit_price)} for di in delivery.items]
+    return render_template('deliveries/edit.html', form=form, delivery=delivery, items_initial=items_initial)
 
 
 def _build_delivery_report_pdf(delivery):

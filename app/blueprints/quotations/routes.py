@@ -277,6 +277,8 @@ def _build_quotation_pdf(quotation):
     story.append(_hline())
 
     total = float(quotation.total_amount or 0)
+    discount = float(quotation.discount or 0)
+    tax = float(quotation.tax or 0)
     grand = float(quotation.grand_total or 0)
     # Subtotal starts where Unit Price starts; Total Quoted Amount starts where Qty starts
     _desc_w = frame_width - 2.9 * inch  # same as items table col0
@@ -291,6 +293,24 @@ def _build_quotation_pdf(quotation):
         ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
     story.append(subtotal_row)
+    if discount != 0:
+        discount_row = Table([['', 'Discount', '%.2f%%' % discount]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
+        discount_row.setStyle(TableStyle([
+            ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('LEFTPADDING', (1, 0), (1, 0), 0),
+        ]))
+        story.append(discount_row)
+    if tax != 0:
+        tax_row = Table([['', 'Tax', '%.2f%%' % tax]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
+        tax_row.setStyle(TableStyle([
+            ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+            ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('LEFTPADDING', (1, 0), (1, 0), 0),
+        ]))
+        story.append(tax_row)
     total_row = Table([['', 'Total Quoted Amount', '%.2f' % grand]], colWidths=[_desc_w, _qty_w + _unit_w, _amt_w])
     total_row.setStyle(TableStyle([
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),

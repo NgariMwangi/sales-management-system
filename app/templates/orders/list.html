@@ -54,7 +54,10 @@
                 <td><span class="badge bg-info">{{ o.order_status }}</span></td>
                 <td>
                     <a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                    <a href="{{ url_for('orders.invoice', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">Invoice</a>
+                    <a href="{{ url_for('orders.pdf', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" download>Invoice</a>
+                    {% if o.payment_status in ['paid', 'partial'] %}
+                    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4') }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal') }}">Receipt</button>
+                    {% endif %}
                 </td>
             </tr>
         {% else %}
@@ -76,4 +79,37 @@
 {% endif %}
     </div>
 </div>
+
+<!-- Receipt type modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="receiptModalLabel">Choose receipt format</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-0">Select the format you want to download:</p>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="receiptA4Btn" class="btn btn-success" download>Receipt (A4)</a>
+                <a href="#" id="receiptThermalBtn" class="btn btn-outline-success" download>Receipt (Thermal)</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var modal = document.getElementById('receiptModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function(event) {
+        var button = event.relatedTarget;
+        if (button && button.getAttribute('data-receipt-a4')) {
+            document.getElementById('receiptA4Btn').href = button.getAttribute('data-receipt-a4');
+            document.getElementById('receiptThermalBtn').href = button.getAttribute('data-receipt-thermal');
+        }
+    });
+})();
+</script>
 {% endblock %}
