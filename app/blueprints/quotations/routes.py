@@ -15,6 +15,7 @@ import json
 from app import db
 from app.blueprints.quotations import quotations_bp
 from app.decorators import role_required
+from app.pdf_fonts import register_pdf_fonts, get_pdf_fonts
 from app.forms import QuotationForm
 from app.models import Quotation, Setting
 from app.services import QuotationService
@@ -127,6 +128,8 @@ def _build_quotation_pdf(quotation):
         leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
     )
     doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
+    register_pdf_fonts(current_app.static_folder)
+    fonts = get_pdf_fonts()
     styles = getSampleStyleSheet()
     black = colors.black
     grey = colors.HexColor('#555555')
@@ -144,76 +147,50 @@ def _build_quotation_pdf(quotation):
 
     title_style = ParagraphStyle(
         'DocTitle', parent=styles['Heading1'],
-        fontSize=18, spaceAfter=2, textColor=black, fontName='Helvetica-Bold', leftIndent=0, firstLineIndent=0,
+        fontSize=20, spaceAfter=2, textColor=black, fontName=fonts['bold'], leftIndent=0, firstLineIndent=0,
     )
     small_style = ParagraphStyle(
-        'Small', parent=styles['Normal'], fontSize=9, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
-        rightIndent=0, bulletIndent=0,
+        'Small', parent=styles['Normal'], fontSize=10, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
+        rightIndent=0, bulletIndent=0, fontName=fonts['regular'],
     )
     body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        'Body', parent=styles['Normal'], fontSize=11, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
     )
     terms_style = ParagraphStyle(
-        'Terms', parent=styles['Normal'], fontSize=9, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        'Terms', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
     )
     story = []
 
-    # ----- Header: use header image (logo + name + contact) if present, else logo + company text -----
+    # ----- Header: logo.png (complete logo image) -----
     static_dir = current_app.static_folder
-    header_path = None
-    for name in ('header.jpg', 'header.png', 'header.jpeg'):
-        p = os.path.join(static_dir, name)
-        if os.path.isfile(p):
-            header_path = p
-            break
-    if header_path:
+    logo_path = os.path.join(static_dir, 'logo.png')
+    if os.path.isfile(logo_path):
         try:
-            ir = ImageReader(header_path)
+            ir = ImageReader(logo_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = 6.0 * inch
+                max_w_pt = frame_width
                 max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                header_img = Image(header_path, width=pw * scale, height=ph * scale)
+                # Logo at half size (reduce by 2x)
+                logo_img = Image(logo_path, width=pw * scale * 0.5, height=ph * scale * 0.5)
             else:
-                header_img = Image(header_path, width=6.0 * inch, height=1.4 * inch)
-            header_img.hAlign = 'LEFT'
-            # Same treatment as header: image then spacer then line as separate flowables (line uses custom draw so it starts at frame left)
-            story.append(header_img)
-            story.append(Spacer(1, 0.2 * inch))
-            story.append(_LineFlowable(frame_width))
+                logo_img = Image(logo_path, width=frame_width * 0.5, height=0.7 * inch)
+            logo_img.hAlign = 'LEFT'
+            story.append(logo_img)
         except Exception:
-            header_path = None
-    if not header_path:
-        logo_path = os.path.join(static_dir, 'logo.jpg')
-        logo_cell = Spacer(1, 1)
-        if os.path.isfile(logo_path):
-            try:
-                ir = ImageReader(logo_path)
-                pw, ph = ir.getSize()
-                if pw and ph:
-                    max_w_pt = 1.4 * inch
-                    max_h_pt = 1.0 * inch
-                    scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                    logo_cell = Image(logo_path, width=pw * scale, height=ph * scale)
-                else:
-                    logo_cell = Image(logo_path, width=1.4 * inch, height=1.0 * inch)
-            except Exception:
-                pass
-        right_content = [
-            Paragraph('<b>{}</b>'.format(company_name.replace('<', '&lt;')), ParagraphStyle('Company', parent=styles['Normal'], fontSize=14, textColor=black, spaceAfter=2, fontName='Helvetica-Bold')),
-            Paragraph(contact_line or ' ', small_style),
-        ]
-        header_table = Table([[logo_cell, right_content]], colWidths=[1.5 * inch, 4.5 * inch])
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (0, 0), 'TOP'),
-            ('VALIGN', (1, 0), (1, 0), 'TOP'),
-            ('LEFTPADDING', (0, 0), (0, 0), 0),
-            ('LEFTPADDING', (1, 0), (1, 0), 12),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 0.2 * inch))
-        story.append(_hline(frame_width))
+            pass
+    # Address below logo (space between logo and address)
+    story.append(Spacer(1, 0.15 * inch))
+    addr_style = ParagraphStyle(
+        'Addr', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#555555'),
+        leftIndent=0, spaceAfter=0, spaceBefore=2, fontName=fonts['regular'],
+    )
+    story.append(Paragraph('Tel: 0725799182 | Gikomba, Kombo Munyiri Rd.', addr_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
     story.append(Spacer(1, 0.15 * inch))
 
     # ----- QUOTATION title -----
@@ -258,8 +235,8 @@ def _build_quotation_pdf(quotation):
     col_widths = [frame_width - 2.9 * inch, 0.6 * inch, 1.1 * inch, 1.2 * inch]
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
         ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
@@ -268,7 +245,8 @@ def _build_quotation_pdf(quotation):
         ('RIGHTPADDING', (0, 0), (0, -1), 6),
         ('LEFTPADDING', (1, 0), (-1, -1), 6),
         ('RIGHTPADDING', (1, 0), (-1, -1), 0),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('FONTNAME', (0, 1), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 1), (-1, -1), 11),
         ('TOPPADDING', (0, 1), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
     ]))
@@ -289,7 +267,7 @@ def _build_quotation_pdf(quotation):
     subtotal_row.setStyle(TableStyle([
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),
         ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
     story.append(subtotal_row)
@@ -298,7 +276,7 @@ def _build_quotation_pdf(quotation):
         discount_row.setStyle(TableStyle([
             ('ALIGN', (1, 0), (1, 0), 'LEFT'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('LEFTPADDING', (1, 0), (1, 0), 0),
         ]))
         story.append(discount_row)
@@ -307,7 +285,7 @@ def _build_quotation_pdf(quotation):
         tax_row.setStyle(TableStyle([
             ('ALIGN', (1, 0), (1, 0), 'LEFT'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('LEFTPADDING', (1, 0), (1, 0), 0),
         ]))
         story.append(tax_row)
@@ -315,8 +293,8 @@ def _build_quotation_pdf(quotation):
     total_row.setStyle(TableStyle([
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),
         ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
     story.append(total_row)
@@ -345,7 +323,8 @@ def _build_quotation_pdf(quotation):
         colWidths=[0.5 * inch, 2.2 * inch, 0.9 * inch, frame_width - 3.6 * inch],
     )
     name_sig_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
@@ -354,7 +333,8 @@ def _build_quotation_pdf(quotation):
     date_data = [['Date:', '_________________________']]
     date_table = Table(date_data, colWidths=[0.5 * inch, frame_width - 0.5 * inch])
     date_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
     story.append(date_table)
@@ -370,10 +350,11 @@ def pdf(quotation_id):
     quotation = Quotation.query.get_or_404(quotation_id)
     pdf_bytes = _build_quotation_pdf(quotation)
     safe_number = "".join(c for c in quotation.quotation_number if c.isalnum() or c in '-_')
+    view_inline = request.args.get('view') == '1'
     return send_file(
         BytesIO(pdf_bytes),
         mimetype='application/pdf',
-        as_attachment=True,
+        as_attachment=not view_inline,
         download_name=f'Quotation_{safe_number}.pdf',
     )
 

@@ -38,6 +38,8 @@
                 <td><span class="badge bg-secondary">{{ q.status }}</span></td>
                 <td>
                     <a href="{{ url_for('quotations.detail', quotation_id=q.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{{ url_for('quotations.pdf', quotation_id=q.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">View PDF</a>
+                    <a href="{{ url_for('quotations.pdf', quotation_id=q.id) }}" class="btn btn-sm btn-outline-danger" download>Export PDF</a>
                     {% if q.status in ['draft','sent'] %}
                     <form action="{{ url_for('quotations.convert_to_order', quotation_id=q.id) }}" method="post" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

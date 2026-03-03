@@ -54,9 +54,9 @@
                 <td><span class="badge bg-info">{{ o.order_status }}</span></td>
                 <td>
                     <a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                    <a href="{{ url_for('orders.pdf', order_id=o.id) }}" class="btn btn-sm btn-outline-secondary" download>Invoice</a>
+                    <a href="{{ url_for('orders.pdf', order_id=o.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Invoice</a>
                     {% if o.payment_status in ['paid', 'partial'] %}
-                    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4') }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal') }}">Receipt</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4', view=1) }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal', view=1) }}">Receipt</button>
                     {% endif %}
                 </td>
             </tr>
@@ -89,11 +89,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted mb-0">Select the format you want to download:</p>
+                <p class="text-muted mb-0">Select the format to view:</p>
             </div>
             <div class="modal-footer">
-                <a href="#" id="receiptA4Btn" class="btn btn-success" download>Receipt (A4)</a>
-                <a href="#" id="receiptThermalBtn" class="btn btn-outline-success" download>Receipt (Thermal)</a>
+                <a href="#" id="receiptA4Btn" class="btn btn-success" target="_blank" rel="noopener">View Receipt (A4)</a>
+                <a href="#" id="receiptThermalBtn" class="btn btn-outline-success" target="_blank" rel="noopener">View Receipt (Thermal)</a>
             </div>
         </div>
     </div>

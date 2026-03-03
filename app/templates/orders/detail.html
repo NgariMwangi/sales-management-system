@@ -4,12 +4,11 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Order {{ order.order_number }}</h2>
     <div>
+        <a href="{{ url_for('orders.pdf', order_id=order.id, view=1) }}" class="btn btn-outline-primary me-2" target="_blank" rel="noopener">View Invoice</a>
         <a href="{{ url_for('orders.pdf', order_id=order.id) }}" class="btn btn-outline-danger me-2" download>Export Invoice</a>
-        {% if order.payment_status in ['paid', 'partial'] %}
-        <div class="btn-group me-2">
-            <a href="{{ url_for('orders.receipt', order_id=order.id, format='a4') }}" class="btn btn-outline-success" download>Receipt (A4)</a>
-            <a href="{{ url_for('orders.receipt', order_id=order.id, format='thermal') }}" class="btn btn-outline-success" download>Receipt (Thermal)</a>
-        </div>
+        {% if (order.payment_status or '')|lower in ['paid', 'partial'] %}
+        <button type="button" class="btn btn-outline-success me-2" data-bs-toggle="modal" data-bs-target="#viewReceiptModal">View Receipt</button>
+        <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#exportReceiptModal">Export Receipt</button>
         {% endif %}
         {% if (order.order_status != 'completed' and current_user.role in ['admin','manager','sales']) or (order.order_status == 'completed' and current_user.role in ['admin','manager']) %}
         <a href="{{ url_for('orders.edit', order_id=order.id) }}" class="btn btn-primary">Edit</a>
@@ -50,4 +49,43 @@
     <strong>Grand Total: {{ "%.2f"|format(order.grand_total|float) }}</strong>
 </p>
 <a href="{{ url_for('orders.list') }}" class="btn btn-secondary">Back to Orders</a>
+
+{% if (order.payment_status or '')|lower in ['paid', 'partial'] %}
+<!-- View Receipt modal -->
+<div class="modal fade" id="viewReceiptModal" tabindex="-1" aria-labelledby="viewReceiptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewReceiptModalLabel">View receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Choose format to view in browser:</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('orders.receipt', order_id=order.id, format='a4', view=1) }}" class="btn btn-outline-success" target="_blank" rel="noopener">A4</a>
+                    <a href="{{ url_for('orders.receipt', order_id=order.id, format='thermal', view=1) }}" class="btn btn-outline-success" target="_blank" rel="noopener">Thermal</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Export Receipt modal -->
+<div class="modal fade" id="exportReceiptModal" tabindex="-1" aria-labelledby="exportReceiptModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportReceiptModalLabel">Export receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Choose format to download:</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ url_for('orders.receipt', order_id=order.id, format='a4') }}" class="btn btn-success" download>A4</a>
+                    <a href="{{ url_for('orders.receipt', order_id=order.id, format='thermal') }}" class="btn btn-success" download>Thermal</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -7,6 +7,7 @@
         {% if current_user.role in ['admin','manager','sales'] %}
         <a href="{{ url_for('deliveries.edit', delivery_id=delivery.id) }}" class="btn btn-primary">Edit</a>
         {% endif %}
+        <a href="{{ url_for('deliveries.pdf', delivery_id=delivery.id, view=1) }}" class="btn btn-outline-primary" target="_blank" rel="noopener">View PDF</a>
         <a href="{{ url_for('deliveries.pdf', delivery_id=delivery.id) }}" class="btn btn-outline-danger" download>Export PDF</a>
         {% if current_user.role == 'delivery' and delivery.assigned_to_id == current_user.id or current_user.role in ['admin','manager','sales'] %}
         <form method="post" action="{{ url_for('deliveries.update_status', delivery_id=delivery.id) }}" class="d-inline">

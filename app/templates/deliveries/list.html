@@ -36,7 +36,11 @@
                 <td>{{ d.scheduled_date or '-' }}</td>
                 <td><span class="badge bg-secondary">{{ d.status }}</span></td>
                 <td>{{ d.assigned_to_user.full_name or d.assigned_to_user.username if d.assigned_to_user else '-' }}</td>
-                <td><a href="{{ url_for('deliveries.detail', delivery_id=d.id) }}" class="btn btn-sm btn-outline-primary">View</a></td>
+                <td>
+                    <a href="{{ url_for('deliveries.detail', delivery_id=d.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{{ url_for('deliveries.pdf', delivery_id=d.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">View PDF</a>
+                    <a href="{{ url_for('deliveries.pdf', delivery_id=d.id) }}" class="btn btn-sm btn-outline-danger" download>Export PDF</a>
+                </td>
             </tr>
         {% else %}
             <tr><td colspan="6" class="text-muted">No deliveries found.</td></tr>

@@ -18,8 +18,9 @@ from reportlab.platypus import (
 from app import db
 from app.blueprints.orders import orders_bp
 from app.decorators import role_required
+from app.pdf_fonts import register_pdf_fonts, get_pdf_fonts
 from app.forms import OrderForm
-from app.models import Order, Product, Setting
+from app.models import Order, Product
 from app.services import OrderService, AuditService
 
 
@@ -133,91 +134,56 @@ def _build_order_invoice_pdf(order):
         leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
     )
     doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
+    register_pdf_fonts(current_app.static_folder)
+    fonts = get_pdf_fonts()
     styles = getSampleStyleSheet()
     black = colors.black
     grey = colors.HexColor('#555555')
 
-    company_name = Setting.get('company_name', '') or 'Company Name'
-    company_phone = Setting.get('company_phone', '') or ''
-    company_address = Setting.get('company_address', '') or ''
-    contact_parts = []
-    if company_phone:
-        contact_parts.append('Tel: {}'.format(company_phone))
-    if company_address:
-        contact_parts.append(company_address.strip().replace('\n', ', '))
-    contact_line = ' | '.join(contact_parts) if contact_parts else ''
-
     title_style = ParagraphStyle(
         'DocTitle', parent=styles['Heading1'],
-        fontSize=18, spaceAfter=2, textColor=black, fontName='Helvetica-Bold', leftIndent=0, firstLineIndent=0,
+        fontSize=20, spaceAfter=2, textColor=black, fontName=fonts['bold'], leftIndent=0, firstLineIndent=0,
     )
     small_style = ParagraphStyle(
-        'Small', parent=styles['Normal'], fontSize=9, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
-        rightIndent=0, bulletIndent=0,
+        'Small', parent=styles['Normal'], fontSize=10, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
+        rightIndent=0, bulletIndent=0, fontName=fonts['regular'],
     )
     body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        'Body', parent=styles['Normal'], fontSize=11, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
     )
     terms_style = ParagraphStyle(
-        'Terms', parent=styles['Normal'], fontSize=9, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        'Terms', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
     )
     story = []
 
-    # ----- Header: same as quotation (header image or logo + company) -----
+    # ----- Header: same as quotation (logo.png at half size + address) -----
     static_dir = current_app.static_folder
-    header_path = None
-    for name in ('header.jpg', 'header.png', 'header.jpeg'):
-        p = os.path.join(static_dir, name)
-        if os.path.isfile(p):
-            header_path = p
-            break
-    if header_path:
+    logo_path = os.path.join(static_dir, 'logo.png')
+    if os.path.isfile(logo_path):
         try:
-            ir = ImageReader(header_path)
+            ir = ImageReader(logo_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = 6.0 * inch
+                max_w_pt = frame_width
                 max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                header_img = Image(header_path, width=pw * scale, height=ph * scale)
+                logo_img = Image(logo_path, width=pw * scale * 0.5, height=ph * scale * 0.5)
             else:
-                header_img = Image(header_path, width=6.0 * inch, height=1.4 * inch)
-            header_img.hAlign = 'LEFT'
-            story.append(header_img)
-            story.append(Spacer(1, 0.2 * inch))
-            story.append(_LineFlowable(frame_width))
+                logo_img = Image(logo_path, width=frame_width * 0.5, height=0.7 * inch)
+            logo_img.hAlign = 'LEFT'
+            story.append(logo_img)
         except Exception:
-            header_path = None
-    if not header_path:
-        logo_path = os.path.join(static_dir, 'logo.jpg')
-        logo_cell = Spacer(1, 1)
-        if os.path.isfile(logo_path):
-            try:
-                ir = ImageReader(logo_path)
-                pw, ph = ir.getSize()
-                if pw and ph:
-                    max_w_pt = 1.4 * inch
-                    max_h_pt = 1.0 * inch
-                    scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                    logo_cell = Image(logo_path, width=pw * scale, height=ph * scale)
-                else:
-                    logo_cell = Image(logo_path, width=1.4 * inch, height=1.0 * inch)
-            except Exception:
-                pass
-        right_content = [
-            Paragraph('<b>{}</b>'.format(company_name.replace('<', '&lt;')), ParagraphStyle('Company', parent=styles['Normal'], fontSize=14, textColor=black, spaceAfter=2, fontName='Helvetica-Bold')),
-            Paragraph(contact_line or ' ', small_style),
-        ]
-        header_table = Table([[logo_cell, right_content]], colWidths=[1.5 * inch, 4.5 * inch])
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (0, 0), 'TOP'),
-            ('VALIGN', (1, 0), (1, 0), 'TOP'),
-            ('LEFTPADDING', (0, 0), (0, 0), 0),
-            ('LEFTPADDING', (1, 0), (1, 0), 12),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 0.2 * inch))
-        story.append(_hline(frame_width))
+            pass
+    story.append(Spacer(1, 0.15 * inch))
+    addr_style = ParagraphStyle(
+        'Addr', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#555555'),
+        leftIndent=0, spaceAfter=0, spaceBefore=2, fontName=fonts['regular'],
+    )
+    story.append(Paragraph('Tel: 0725799182 | Gikomba, Kombo Munyiri Rd.', addr_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
     story.append(Spacer(1, 0.15 * inch))
 
     # ----- INVOICE title -----
@@ -260,11 +226,12 @@ def _build_order_invoice_pdf(order):
             '%.2f' % float(oi.selling_price),
             '%.2f' % float(oi.subtotal),
         ])
-    col_widths = [frame_width - 2.9 * inch, 0.6 * inch, 1.1 * inch, 1.2 * inch]
+    # Narrower Item/Description, width distributed to Qty, Unit Price, Amount
+    col_widths = [frame_width - 4.1 * inch, 1.0 * inch, 1.5 * inch, 1.6 * inch]
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
         ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
@@ -273,7 +240,8 @@ def _build_order_invoice_pdf(order):
         ('RIGHTPADDING', (0, 0), (0, -1), 6),
         ('LEFTPADDING', (1, 0), (-1, -1), 6),
         ('RIGHTPADDING', (1, 0), (-1, -1), 0),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('FONTNAME', (0, 1), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 1), (-1, -1), 11),
         ('TOPPADDING', (0, 1), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
     ]))
@@ -285,17 +253,17 @@ def _build_order_invoice_pdf(order):
     discount = float(order.discount or 0)
     tax = float(order.tax or 0)
     grand = float(order.grand_total or 0)
-    _desc_w = frame_width - 2.9 * inch
-    _qty_w = 0.6 * inch
-    _unit_w = 1.1 * inch
-    _amt_w = 1.2 * inch
+    _desc_w = frame_width - 4.1 * inch
+    _qty_w = 1.0 * inch
+    _unit_w = 1.5 * inch
+    _amt_w = 1.6 * inch
 
     # Subtotal row (aligned with Unit Price column)
     subtotal_row = Table([['', 'Subtotal', '%.2f' % total]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
     subtotal_row.setStyle(TableStyle([
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),
         ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
     story.append(subtotal_row)
@@ -304,7 +272,7 @@ def _build_order_invoice_pdf(order):
         disc_row.setStyle(TableStyle([
             ('ALIGN', (1, 0), (1, 0), 'LEFT'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('LEFTPADDING', (1, 0), (1, 0), 0),
         ]))
         story.append(disc_row)
@@ -313,16 +281,16 @@ def _build_order_invoice_pdf(order):
         tax_row.setStyle(TableStyle([
             ('ALIGN', (1, 0), (1, 0), 'LEFT'),
             ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('LEFTPADDING', (1, 0), (1, 0), 0),
         ]))
         story.append(tax_row)
-    total_row = Table([['', 'Total Amount', '%.2f' % grand]], colWidths=[_desc_w, _qty_w + _unit_w, _amt_w])
+    total_row = Table([['', 'Total Amount', '%.2f' % grand]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
     total_row.setStyle(TableStyle([
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),
         ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('LEFTPADDING', (1, 0), (1, 0), 0),
     ]))
     story.append(total_row)
@@ -346,7 +314,8 @@ def _build_order_invoice_pdf(order):
         colWidths=[0.5 * inch, 2.2 * inch, 0.9 * inch, frame_width - 3.6 * inch],
     )
     name_sig_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
@@ -355,7 +324,8 @@ def _build_order_invoice_pdf(order):
     date_data = [['Date:', '_________________________']]
     date_table = Table(date_data, colWidths=[0.5 * inch, frame_width - 0.5 * inch])
     date_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
     story.append(date_table)
@@ -366,121 +336,167 @@ def _build_order_invoice_pdf(order):
 
 
 def _build_receipt_pdf_a4(order):
-    """Build payment receipt PDF in A4 format; same layout as thermal receipt, uses receipt logo.png."""
+    """Build payment receipt PDF in A4 format; same layout as invoice (header, table, styles) with receipt features."""
     from datetime import datetime
+    register_pdf_fonts(current_app.static_folder)
+    fonts = get_pdf_fonts()
     buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=A4,
-        rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54,
+    margin = 50
+    pw_pt, ph_pt = A4[0], A4[1]
+    frame_width = pw_pt - 2 * margin
+    frame_height = ph_pt - 2 * margin
+    frame = Frame(
+        margin, margin, frame_width, frame_height,
+        id='normal',
+        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
     )
-    a4_width_pt = A4[0]
-    content_width = a4_width_pt - 108  # 54*2 margins
+    doc = BaseDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
+    )
+    doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
     styles = getSampleStyleSheet()
     black = colors.black
+    grey = colors.HexColor('#555555')
 
+    title_style = ParagraphStyle(
+        'DocTitle', parent=styles['Heading1'],
+        fontSize=20, spaceAfter=2, textColor=black, fontName=fonts['bold'], leftIndent=0, firstLineIndent=0,
+    )
+    small_style = ParagraphStyle(
+        'Small', parent=styles['Normal'], fontSize=10, textColor=grey, spaceAfter=0, leftIndent=0, firstLineIndent=0,
+        rightIndent=0, bulletIndent=0, fontName=fonts['regular'],
+    )
+    body_style = ParagraphStyle(
+        'Body', parent=styles['Normal'], fontSize=11, textColor=black, spaceAfter=2, leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
+    )
     center_style = ParagraphStyle(
         'Center', parent=styles['Normal'], fontSize=11, alignment=1, spaceAfter=4, textColor=black,
-        leftIndent=0, firstLineIndent=0,
+        fontName=fonts['regular'],
     )
     center_bold = ParagraphStyle(
-        'CenterBold', parent=styles['Normal'], fontSize=14, alignment=1, fontName='Helvetica-Bold', spaceAfter=4, textColor=black,
-        leftIndent=0, firstLineIndent=0,
-    )
-    left_style = ParagraphStyle(
-        'Left', parent=styles['Normal'], fontSize=10, alignment=0, spaceAfter=2, textColor=black,
-        leftIndent=0, firstLineIndent=0,
-    )
-    left_bold = ParagraphStyle(
-        'LeftBold', parent=styles['Normal'], fontSize=10, alignment=0, fontName='Helvetica-Bold', spaceAfter=2, textColor=black,
-        leftIndent=0, firstLineIndent=0,
-    )
-    right_bold = ParagraphStyle(
-        'RightBold', parent=styles['Normal'], fontSize=10, alignment=2, fontName='Helvetica-Bold', spaceAfter=2, textColor=black,
-    )
-    line_style = ParagraphStyle(
-        'Line', parent=styles['Normal'], fontSize=10, alignment=1, spaceAfter=6,
+        'CenterBold', parent=styles['Normal'], fontSize=12, alignment=1, fontName=fonts['bold'], spaceAfter=4, textColor=black,
     )
     story = []
 
-    # Logo (receipt logo.png)
-    logo_path = os.path.join(current_app.static_folder, 'receipt logo.png')
+    # ----- Header: same as invoice (logo.png at half size + address) -----
+    static_dir = current_app.static_folder
+    logo_path = os.path.join(static_dir, 'logo.png')
     if os.path.isfile(logo_path):
         try:
             ir = ImageReader(logo_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = min(content_width, 3.5 * inch)
-                max_h_pt = 1.2 * inch
+                max_w_pt = frame_width
+                max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                img = Image(logo_path, width=pw * scale, height=ph * scale)
+                logo_img = Image(logo_path, width=pw * scale * 0.5, height=ph * scale * 0.5)
             else:
-                img = Image(logo_path, width=min(content_width, 3.5 * inch), height=1.2 * inch)
-            story.append(img)
-            story.append(Spacer(1, 0.15 * inch))
+                logo_img = Image(logo_path, width=frame_width * 0.5, height=0.7 * inch)
+            logo_img.hAlign = 'LEFT'
+            story.append(logo_img)
         except Exception:
             pass
+    story.append(Spacer(1, 0.15 * inch))
+    addr_style = ParagraphStyle(
+        'Addr', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#555555'),
+        leftIndent=0, spaceAfter=0, spaceBefore=2, fontName=fonts['regular'],
+    )
+    story.append(Paragraph('Tel: 0725799182 | Gikomba, Kombo Munyiri Rd.', addr_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.15 * inch))
 
-    story.append(Paragraph('—' * 40, line_style))
+    # ----- RECEIPT title -----
+    story.append(Paragraph('RECEIPT', title_style))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.12 * inch))
 
-    # Receipt No (left) and Date (right)
+    # ----- Receipt No (left) Date (right) -----
     receipt_date = datetime.utcnow().strftime('%d/%m/%Y')
-    ref_table = Table([[
-        Paragraph('Receipt No: <b>{}</b>'.format(order.order_number), left_style),
-        Paragraph('Date: {}'.format(receipt_date), left_style),
-    ]], colWidths=[content_width * 0.5, content_width * 0.5])
+    ref_table = Table([
+        [Paragraph('Receipt No: <b>{}</b>'.format(order.order_number), small_style),
+         Paragraph('Date: <b>{}</b>'.format(receipt_date), ParagraphStyle('SmallRight', parent=small_style, alignment=2))]
+    ], colWidths=[frame_width - 2.5 * inch, 2.5 * inch])
     ref_table.setStyle(TableStyle([
         ('ALIGN', (0, 0), (0, 0), 'LEFT'),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
         ('LEFTPADDING', (0, 0), (0, 0), 0),
-        ('RIGHTPADDING', (1, 0), (1, 0), 0),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (0, 0), 0),
     ]))
     story.append(ref_table)
-    story.append(Spacer(1, 0.12 * inch))
+    story.append(Spacer(1, 0.25 * inch))
 
-    # Customer: table with zero left padding for alignment
-    customer_cell = Paragraph('Customer: <b>{}</b>'.format((order.customer_name or '—').replace('<', '&lt;')), left_style)
-    customer_table = Table([[customer_cell]], colWidths=[content_width])
-    customer_table.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    story.append(customer_table)
-    story.append(Paragraph('—' * 40, line_style))
+    # ----- Customer (same as invoice) -----
+    story.append(Paragraph('Customer:', body_style))
+    story.append(Paragraph(order.customer_name or '—', body_style))
+    if order.phone:
+        story.append(Paragraph('Tel: {}'.format(order.phone), small_style))
+    if order.email:
+        story.append(Paragraph('Email: {}'.format(order.email), small_style))
+    story.append(Spacer(1, 0.15 * inch))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.2 * inch))
 
-    # Item table: Item/Description | Qty | Unit Price | Amount (no borders)
-    col_w = [content_width * 0.45, content_width * 0.12, content_width * 0.2, content_width * 0.23]
+    # ----- Items table: same columns as invoice -----
     data = [['Item / Description', 'Qty', 'Unit Price', 'Amount']]
     for oi in order.items:
         data.append([
-            (oi.product_name or '—')[:50],
+            oi.product_name or '—',
             str(oi.quantity),
-            '{:,.2f}'.format(float(oi.selling_price)),
-            '{:,.2f}'.format(float(oi.subtotal)),
+            '%.2f' % float(oi.selling_price),
+            '%.2f' % float(oi.subtotal),
         ])
-    grand = float(order.grand_total or 0)
-    data.append([
-        Paragraph('<b>TOTAL</b>', left_bold),
-        '', '', Paragraph('<b>{:,.2f}</b>'.format(grand), right_bold),
-    ])
-    t = Table(data, colWidths=col_w)
+    _desc_w = frame_width - 4.1 * inch
+    _qty_w = 1.0 * inch
+    _unit_w = 1.5 * inch
+    _amt_w = 1.6 * inch
+    col_widths = [_desc_w, _qty_w, _unit_w, _amt_w]
+    t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (0, -1), 6),
+        ('LEFTPADDING', (1, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (1, 0), (-1, -1), 0),
+        ('FONTNAME', (0, 1), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 1), (-1, -1), 11),
+        ('TOPPADDING', (0, 1), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
     ]))
     story.append(t)
-    story.append(Paragraph('—' * 40, line_style))
-    story.append(Paragraph('Payment: {}'.format(order.payment_method or '—'), center_style))
+    story.append(Spacer(1, 0.08 * inch))
+    story.append(_hline(frame_width))
 
+    # ----- Total row (same column alignment as invoice Subtotal/Total Amount) -----
+    grand = float(order.grand_total or 0)
+    total_row = Table([['', 'TOTAL', '%.2f' % grand]], colWidths=[_desc_w + _qty_w, _unit_w, _amt_w])
+    total_row.setStyle(TableStyle([
+        ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
+    ]))
+    story.append(total_row)
+    story.append(Spacer(1, 0.25 * inch))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.15 * inch))
+
+    # ----- Receipt features: Payment, thank you, disclaimer, signature -----
+    story.append(Paragraph('Payment: {}'.format(order.payment_method or '—'), body_style))
+    story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph('Thank you for your business', center_bold))
     story.append(Paragraph('Goods once sold are not refundable', center_style))
-    story.append(Paragraph('—' * 40, line_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
+    story.append(Spacer(1, 0.12 * inch))
     story.append(Paragraph('Authorised Signature / Stamp', center_style))
 
     doc.build(story)
@@ -491,6 +507,8 @@ def _build_receipt_pdf_a4(order):
 def _build_receipt_pdf_thermal(order):
     """Build payment receipt PDF for thermal printer (80mm width); format matches receipt template."""
     from datetime import datetime
+    register_pdf_fonts(current_app.static_folder)
+    fonts = get_pdf_fonts()
     thermal_width = 80 * mm
     thermal_height = 842
     content_width = thermal_width - 24
@@ -501,29 +519,29 @@ def _build_receipt_pdf_thermal(order):
     )
     styles = getSampleStyleSheet()
     center_style = ParagraphStyle(
-        'Center', parent=styles['Normal'], fontSize=9, alignment=1, spaceAfter=2,
+        'Center', parent=styles['Normal'], fontSize=10, alignment=1, spaceAfter=2, fontName=fonts['regular'],
     )
     center_bold = ParagraphStyle(
-        'CenterBold', parent=styles['Normal'], fontSize=10, alignment=1, fontName='Helvetica-Bold', spaceAfter=2,
+        'CenterBold', parent=styles['Normal'], fontSize=11, alignment=1, fontName=fonts['bold'], spaceAfter=2,
     )
     left_style = ParagraphStyle(
-        'Left', parent=styles['Normal'], fontSize=8, alignment=0, spaceAfter=1,
-        leftIndent=0, firstLineIndent=0,
+        'Left', parent=styles['Normal'], fontSize=9, alignment=0, spaceAfter=1,
+        leftIndent=0, firstLineIndent=0, fontName=fonts['regular'],
     )
     left_bold = ParagraphStyle(
-        'LeftBold', parent=styles['Normal'], fontSize=8, alignment=0, fontName='Helvetica-Bold', spaceAfter=1,
+        'LeftBold', parent=styles['Normal'], fontSize=9, alignment=0, fontName=fonts['bold'], spaceAfter=1,
         leftIndent=0, firstLineIndent=0,
     )
     right_bold = ParagraphStyle(
-        'RightBold', parent=styles['Normal'], fontSize=8, alignment=2, fontName='Helvetica-Bold', spaceAfter=1,
+        'RightBold', parent=styles['Normal'], fontSize=9, alignment=2, fontName=fonts['bold'], spaceAfter=1,
     )
     line_style = ParagraphStyle(
-        'Line', parent=styles['Normal'], fontSize=8, alignment=1, spaceAfter=2,
+        'Line', parent=styles['Normal'], fontSize=9, alignment=1, spaceAfter=2, fontName=fonts['regular'],
     )
     story = []
 
-    # Logo (receipt logo.png)
-    logo_path = os.path.join(current_app.static_folder, 'receipt logo.png')
+    # Logo (logo.png – same as invoice) + address below
+    logo_path = os.path.join(current_app.static_folder, 'logo.png')
     if os.path.isfile(logo_path):
         try:
             ir = ImageReader(logo_path)
@@ -536,9 +554,15 @@ def _build_receipt_pdf_thermal(order):
             else:
                 img = Image(logo_path, width=content_width, height=0.5 * inch)
             story.append(img)
-            story.append(Spacer(1, 0.08 * inch))
         except Exception:
             pass
+    story.append(Spacer(1, 0.06 * inch))
+    addr_style = ParagraphStyle(
+        'AddrThermal', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor('#555555'),
+        alignment=1, leftIndent=0, spaceAfter=0, spaceBefore=0, fontName=fonts['regular'],
+    )
+    story.append(Paragraph('Tel: 0725799182 | Gikomba, Kombo Munyiri Rd.', addr_style))
+    story.append(Spacer(1, 0.06 * inch))
 
     story.append(Paragraph('—' * 20, line_style))
 
@@ -553,7 +577,7 @@ def _build_receipt_pdf_thermal(order):
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
         ('LEFTPADDING', (0, 0), (0, 0), 0),
         ('RIGHTPADDING', (1, 0), (1, 0), 0),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
     ]))
     story.append(ref_table)
     story.append(Spacer(1, 0.06 * inch))
@@ -568,9 +592,10 @@ def _build_receipt_pdf_thermal(order):
     story.append(customer_table)
     story.append(Paragraph('—' * 20, line_style))
 
-    # Item table: Item/Description | Qty | Unit Price | Amount
-    col_w = [content_width * 0.42, content_width * 0.14, content_width * 0.22, content_width * 0.22]
-    data = [['Item / Description', 'Qty', 'Unit Price', 'Amount']]
+    # Item table: Item | Qty | Unit Price | Amount
+    # Narrower Item, width distributed to Qty, Unit Price, Amount
+    col_w = [content_width * 0.26, content_width * 0.20, content_width * 0.27, content_width * 0.27]
+    data = [['Item', 'Qty', 'Unit Price', 'Amount']]
     for oi in order.items:
         name = (oi.product_name or '—')[:24]
         data.append([
@@ -581,13 +606,13 @@ def _build_receipt_pdf_thermal(order):
         ])
     grand = float(order.grand_total or 0)
     data.append([
-        Paragraph('<b>TOTAL</b>', left_bold),
-        '', '', Paragraph('<b>{:,.0f}</b>'.format(grand), right_bold),
+        '', Paragraph('<b>TOTAL</b>', left_bold), '', Paragraph('<b>{:,.0f}</b>'.format(grand), right_bold),
     ])
     t = Table(data, colWidths=col_w)
     t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTNAME', (0, 1), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
@@ -616,10 +641,11 @@ def pdf(order_id):
     order = Order.query.get_or_404(order_id)
     pdf_bytes = _build_order_invoice_pdf(order)
     safe_number = "".join(c for c in order.order_number if c.isalnum() or c in '-_')
+    view_inline = request.args.get('view') == '1'
     return send_file(
         BytesIO(pdf_bytes),
         mimetype='application/pdf',
-        as_attachment=True,
+        as_attachment=not view_inline,
         download_name=f'Invoice_{safe_number}.pdf',
     )
 
@@ -638,10 +664,11 @@ def receipt(order_id):
         pdf_bytes = _build_receipt_pdf_a4(order)
     safe_number = "".join(c for c in order.order_number if c.isalnum() or c in '-_')
     download_name = f'Receipt_{safe_number}_thermal.pdf' if fmt == 'thermal' else f'Receipt_{safe_number}.pdf'
+    view_inline = request.args.get('view') == '1'
     return send_file(
         BytesIO(pdf_bytes),
         mimetype='application/pdf',
-        as_attachment=True,
+        as_attachment=not view_inline,
         download_name=download_name,
     )
 

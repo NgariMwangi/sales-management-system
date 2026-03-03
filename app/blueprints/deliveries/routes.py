@@ -17,8 +17,9 @@ from reportlab.platypus import (
 from app import db
 from app.blueprints.deliveries import deliveries_bp
 from app.decorators import role_required
+from app.pdf_fonts import register_pdf_fonts, get_pdf_fonts
 from app.forms import DeliveryForm
-from app.models import Delivery, DeliveryItem, Order, User, Setting
+from app.models import Delivery, DeliveryItem, Order, User
 from app.services import DeliveryService
 
 
@@ -188,91 +189,54 @@ def _build_delivery_report_pdf(delivery):
         leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin,
     )
     doc.addPageTemplates([PageTemplate(id='First', frames=[frame]), PageTemplate(id='Later', frames=[frame])])
+    register_pdf_fonts(current_app.static_folder)
+    fonts = get_pdf_fonts()
     styles = getSampleStyleSheet()
     black = colors.black
     grey = colors.HexColor('#555555')
     border_light = colors.HexColor('#e2e8f0')
 
-    company_name = Setting.get('company_name', '') or 'Company Name'
-    company_phone = Setting.get('company_phone', '') or ''
-    company_address = Setting.get('company_address', '') or ''
-    contact_parts = []
-    if company_phone:
-        contact_parts.append('Tel: {}'.format(company_phone))
-    if company_address:
-        contact_parts.append(company_address.strip().replace('\n', ', '))
-    contact_line = ' | '.join(contact_parts) if contact_parts else ''
-
     title_style = ParagraphStyle(
         'DocTitle', parent=styles['Heading1'],
-        fontSize=18, spaceAfter=2, textColor=black, fontName='Helvetica-Bold',
+        fontSize=20, spaceAfter=2, textColor=black, fontName=fonts['bold'],
         leftIndent=0, firstLineIndent=0,
     )
     small_style = ParagraphStyle(
-        'Small', parent=styles['Normal'], fontSize=9, textColor=grey, spaceAfter=0,
-        leftIndent=0, firstLineIndent=0, rightIndent=0, bulletIndent=0,
+        'Small', parent=styles['Normal'], fontSize=10, textColor=grey, spaceAfter=0,
+        leftIndent=0, firstLineIndent=0, rightIndent=0, bulletIndent=0, fontName=fonts['regular'],
     )
     body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'], fontSize=10, textColor=black, spaceAfter=2,
-        leftIndent=0, firstLineIndent=0,
+        'Body', parent=styles['Normal'], fontSize=11, textColor=black, spaceAfter=2,
+        leftIndent=0, firstLineIndent=0, fontName=fonts['regular'],
     )
     story = []
 
-    # ----- Header: same as quotation (header image or logo + company) -----
+    # ----- Header: same as quotation (logo.png at half size + address) -----
     static_dir = current_app.static_folder
-    header_path = None
-    for name in ('header.jpg', 'header.png', 'header.jpeg'):
-        p = os.path.join(static_dir, name)
-        if os.path.isfile(p):
-            header_path = p
-            break
-    if header_path:
+    logo_path = os.path.join(static_dir, 'logo.png')
+    if os.path.isfile(logo_path):
         try:
-            ir = ImageReader(header_path)
+            ir = ImageReader(logo_path)
             pw, ph = ir.getSize()
             if pw and ph:
-                max_w_pt = 6.0 * inch
+                max_w_pt = frame_width
                 max_h_pt = 1.4 * inch
                 scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                header_img = Image(header_path, width=pw * scale, height=ph * scale)
+                logo_img = Image(logo_path, width=pw * scale * 0.5, height=ph * scale * 0.5)
             else:
-                header_img = Image(header_path, width=6.0 * inch, height=1.4 * inch)
-            header_img.hAlign = 'LEFT'
-            story.append(header_img)
-            story.append(Spacer(1, 0.2 * inch))
-            story.append(_LineFlowable(frame_width))
+                logo_img = Image(logo_path, width=frame_width * 0.5, height=0.7 * inch)
+            logo_img.hAlign = 'LEFT'
+            story.append(logo_img)
         except Exception:
-            header_path = None
-    if not header_path:
-        logo_path = os.path.join(static_dir, 'logo.jpg')
-        logo_cell = Spacer(1, 1)
-        if os.path.isfile(logo_path):
-            try:
-                ir = ImageReader(logo_path)
-                pw, ph = ir.getSize()
-                if pw and ph:
-                    max_w_pt = 1.4 * inch
-                    max_h_pt = 1.0 * inch
-                    scale = min(max_w_pt / pw, max_h_pt / ph, 1.0)
-                    logo_cell = Image(logo_path, width=pw * scale, height=ph * scale)
-                else:
-                    logo_cell = Image(logo_path, width=1.4 * inch, height=1.0 * inch)
-            except Exception:
-                pass
-        right_content = [
-            Paragraph('<b>{}</b>'.format(company_name.replace('<', '&lt;')), ParagraphStyle('Company', parent=styles['Normal'], fontSize=14, textColor=black, spaceAfter=2, fontName='Helvetica-Bold')),
-            Paragraph(contact_line or ' ', small_style),
-        ]
-        header_table = Table([[logo_cell, right_content]], colWidths=[1.5 * inch, 4.5 * inch])
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (0, 0), 'TOP'),
-            ('VALIGN', (1, 0), (1, 0), 'TOP'),
-            ('LEFTPADDING', (0, 0), (0, 0), 0),
-            ('LEFTPADDING', (1, 0), (1, 0), 12),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 0.2 * inch))
-        story.append(_hline(frame_width))
+            pass
+    story.append(Spacer(1, 0.15 * inch))
+    addr_style = ParagraphStyle(
+        'Addr', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#555555'),
+        leftIndent=0, spaceAfter=0, spaceBefore=2, fontName=fonts['regular'],
+    )
+    story.append(Paragraph('Tel: 0725799182 | Gikomba, Kombo Munyiri Rd.', addr_style))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(_hline(frame_width))
     story.append(Spacer(1, 0.15 * inch))
 
     # ----- DELIVERY NOTE (left) -----
@@ -313,20 +277,22 @@ def _build_delivery_report_pdf(delivery):
     data = [['Item / Description', 'Qty Delivered', 'Remarks']]
     for di in delivery.items:
         data.append([di.product_name or '—', str(di.quantity), ''])
-    col_widths = [frame_width - 1.8 * inch, 0.9 * inch, 0.9 * inch]
+    # Narrower Item/Description, wider Remarks; part of description width given to Qty Delivered
+    col_widths = [frame_width - 3.8 * inch, 1.3 * inch, 2.5 * inch]
     t = Table(data, colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 0), (-1, 0), fonts['bold']),
+        ('FONTNAME', (0, 1), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
         ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (1, -1), 'CENTER'),
         ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-        ('LEFTPADDING', (0, 0), (0, -1), 0),
-        ('LEFTPADDING', (1, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (0, -1), 8),
+        ('LEFTPADDING', (1, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('FONTSIZE', (0, 1), (-1, -1), 11),
         ('TOPPADDING', (0, 1), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
         ('BOX', (0, 0), (-1, -1), 0.5, border_light),
@@ -344,7 +310,8 @@ def _build_delivery_report_pdf(delivery):
         ['Date:', '_________________________', '', ''],
     ], colWidths=_nc)
     received_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (-1, -1), fonts['regular']),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
         ('LEFTPADDING', (0, 0), (0, -1), 0),
     ]))
@@ -353,14 +320,14 @@ def _build_delivery_report_pdf(delivery):
 
     # ----- Goods received disclaimer (centered) -----
     disclaimer_style = ParagraphStyle(
-        'Disclaimer', parent=styles['Normal'], fontSize=10, textColor=black, alignment=1, spaceAfter=0,
+        'Disclaimer', parent=styles['Normal'], fontSize=11, textColor=black, alignment=1, spaceAfter=0, fontName=fonts['regular'],
     )
     story.append(Paragraph('Goods received in good condition', disclaimer_style))
     story.append(Spacer(1, 0.3 * inch))
 
     # ----- Footer: Tel centered -----
     footer_style = ParagraphStyle(
-        'Footer', parent=styles['Normal'], fontSize=9, textColor=grey, alignment=1, spaceAfter=0,
+        'Footer', parent=styles['Normal'], fontSize=10, textColor=grey, alignment=1, spaceAfter=0, fontName=fonts['regular'],
     )
     story.append(Paragraph('Tel: 0725 799182', footer_style))
 
@@ -378,10 +345,11 @@ def pdf(delivery_id):
         abort(403)
     pdf_bytes = _build_delivery_report_pdf(delivery)
     safe_number = "".join(c for c in delivery.delivery_number if c.isalnum() or c in '-_')
+    view_inline = request.args.get('view') == '1'
     return send_file(
         BytesIO(pdf_bytes),
         mimetype='application/pdf',
-        as_attachment=True,
+        as_attachment=not view_inline,
         download_name=f'Delivery_Report_{safe_number}.pdf',
     )
 
