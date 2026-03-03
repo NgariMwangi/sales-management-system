@@ -52,12 +52,25 @@
                 <td>{{ "%.2f"|format(o.grand_total|float) }}</td>
                 <td><span class="badge bg-secondary">{{ o.payment_status }}</span></td>
                 <td><span class="badge bg-info">{{ o.order_status }}</span></td>
-                <td>
-                    <a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                    <a href="{{ url_for('orders.pdf', order_id=o.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Invoice</a>
-                    {% if o.payment_status in ['paid', 'partial'] %}
-                    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4', view=1) }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal', view=1) }}">Receipt</button>
-                    {% endif %}
+                <td class="text-nowrap">
+                    <div class="dropdown d-md-none">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('orders.detail', order_id=o.id) }}">View</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('orders.pdf', order_id=o.id, view=1) }}" target="_blank" rel="noopener">Invoice</a></li>
+                            {% if (o.payment_status or '')|lower in ['paid', 'partial'] %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><button type="button" class="dropdown-item text-start" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4', view=1) }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal', view=1) }}">Receipt</button></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <div class="d-none d-md-inline">
+                        <a href="{{ url_for('orders.detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{{ url_for('orders.pdf', order_id=o.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Invoice</a>
+                        {% if (o.payment_status or '')|lower in ['paid', 'partial'] %}
+                        <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiptModal" data-receipt-a4="{{ url_for('orders.receipt', order_id=o.id, format='a4', view=1) }}" data-receipt-thermal="{{ url_for('orders.receipt', order_id=o.id, format='thermal', view=1) }}">Receipt</button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
         {% else %}

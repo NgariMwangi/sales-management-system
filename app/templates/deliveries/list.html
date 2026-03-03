@@ -36,10 +36,20 @@
                 <td>{{ d.scheduled_date or '-' }}</td>
                 <td><span class="badge bg-secondary">{{ d.status }}</span></td>
                 <td>{{ d.assigned_to_user.full_name or d.assigned_to_user.username if d.assigned_to_user else '-' }}</td>
-                <td>
-                    <a href="{{ url_for('deliveries.detail', delivery_id=d.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                    <a href="{{ url_for('deliveries.pdf', delivery_id=d.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">View PDF</a>
-                    <a href="{{ url_for('deliveries.pdf', delivery_id=d.id) }}" class="btn btn-sm btn-outline-danger" download>Export PDF</a>
+                <td class="text-nowrap">
+                    <div class="dropdown d-md-none">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('deliveries.detail', delivery_id=d.id) }}">View</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('deliveries.pdf', delivery_id=d.id, view=1) }}" target="_blank" rel="noopener">View PDF</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('deliveries.pdf', delivery_id=d.id) }}" download>Export PDF</a></li>
+                        </ul>
+                    </div>
+                    <div class="d-none d-md-inline">
+                        <a href="{{ url_for('deliveries.detail', delivery_id=d.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                        <a href="{{ url_for('deliveries.pdf', delivery_id=d.id, view=1) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">View PDF</a>
+                        <a href="{{ url_for('deliveries.pdf', delivery_id=d.id) }}" class="btn btn-sm btn-outline-danger" download>Export PDF</a>
+                    </div>
                 </td>
             </tr>
         {% else %}
